@@ -105,7 +105,7 @@ pub fn fire(v: Victim, agent: &Agent, weapons: &[Weapon], tp: &TaskParams, s: &S
         for &p in std::iter::once(&part).chain(s.more) {
             let hit = ped::Hit::new(wp.damage, wp, delirium_data::nm_asset::PART_BONES[p], ped::Attacker::Player { sure: true });
             let o = ped::damage(&mut h, &hit, &ped::Victim::default(), v.rand);
-            (lost, instant) = (lost + o.lost, instant || o.flags & ped::INSTANT != 0);
+            (lost, instant) = (lost + o.lost, instant || o.flags & ped::INSTANT() != 0);
         }
         *v.health = h.health;
         (lost, instant)
@@ -137,7 +137,7 @@ pub fn fire(v: Victim, agent: &Agent, weapons: &[Weapon], tp: &TaskParams, s: &S
     }
     let agility = if s.weak { 2 } else { 3 };
     let set = weapon.map_or("*", |wp| nm::weapon_set(wp, agility));
-    let vel = shottask::bullet(at, at - d.normalize() * 3.0, weapon.map_or(fallback, |wp| wp.force));
+    let vel = shottask::bullet(at, at - d.normalize() * 3.0, weapon.map_or(fallback, |wp| wp.force), false);
     lines.push(format!("applyImpulse partIndex={part} hitPoint={} impulse={}", v3(at), v3(vel)));
     if was_dead {
         return Fired { say, at, lines };

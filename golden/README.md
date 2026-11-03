@@ -17,7 +17,7 @@ cargo run --release -p golden -- --game "E:\Downloads\TorrentDownloads\Grand The
 |---|---|---|
 | `build` | `cargo build --release -p delirium-room --locked --manifest-path <SDK>\Cargo.toml --target-dir target-playroom`, run from this repository; `git status` and the SDK's `Cargo.lock` before and after, any change is an error | `target-playroom\release\delirium-room.exe` |
 | `dump` | the Playroom's `NM_DUMP` (`--game … --headless 0`: Homer = `m_y_pmanhat_01` after `getup::homer` + `stand_up`) against the build DMS makes (`tools/dms-game`); has to match **byte for byte** | `homer.nmdump`, `homer.ours.nmdump` |
-| `links` | the links DMS derives from the idle clip (`DERIVED_LINKS`) are given to the Playroom through `NM_LINKS`; its 60 steps have to match the run without them bit for bit | `homer.links`, `links.*.frames` |
+| `links` | the links DMS derives from the idle clip (`dms_game::links`, the Playroom's `getup::links`) are given to the Playroom through `NM_LINKS`; its 60 steps have to match the run without them bit for bit | `homer.links`, `links.*.frames` |
 | `lead` | an SDK agent in LEAD built as in `dms_selftest` (the build from the dump, the Playroom room's CONCRETE floor: 1 m tiles with the pool's pit, `world::floor_tris`, seed 0.3, `bodyBalance`) against the Playroom's first second, bit for bit | `lead.dms.frames` |
 | `run [names]` | the scenarios `golden/scenarios/*.txt` (all or the named ones) | `<name>.rec`, `<name>.log`, `<name>.frames` |
 | `all` | everything in order | |

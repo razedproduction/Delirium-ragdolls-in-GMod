@@ -51,9 +51,9 @@ pub fn unload() {
 
 /// What to tell someone who hasn't set the game's folder.
 pub fn how_to() -> String {
-    "set dms_game_dir to your GTA IV folder (PC: the one with GTAIV.exe and pc\\; Xbox 360: the one with \
-     default.xex), e.g.  dms_game_dir \"D:\\Games\\Grand Theft Auto IV\"  (the game's files are read from there, \
-     nothing is copied)"
+    "set dms_game_dir to your GTA IV folder (PC: the one with the Steam version's GTAIV.exe and pc\\; Xbox 360: \
+     the one with default.xex), e.g.  dms_game_dir \"D:\\Games\\Grand Theft Auto IV\"  (the game's files are read \
+     from there, nothing is copied; Delirium reads its own numbers from that GTAIV.exe or default.xex too)"
         .into()
 }
 
@@ -101,7 +101,7 @@ fn read(dir: &str) -> Result<Data, String> {
             r?;
             "data/taskparams.txt".to_string()
         }
-        None => "none in this game (the PC version has none): NM's defaults, as in the Playroom".to_string(),
+        None => "none in this game: NM's defaults, as in the Playroom".to_string(),
     };
     Ok(Data {
         dir: PathBuf::from(dir),

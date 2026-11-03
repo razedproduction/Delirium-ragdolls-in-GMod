@@ -1,4 +1,4 @@
-//! The Delirium release the module is built against, for `DMS.DeliriumVersion`: the SDK checkout's tag (`v0.2.2`), as
+//! The Delirium release the module is built against, for `DMS.DeliriumVersion`: the SDK checkout's tag (`v0.6.0`), as
 //! its crates all say 0.1.0 and `nm_version` 100. Only read: `git describe` writes nothing into the SDK's folder.
 
 use std::process::Command;

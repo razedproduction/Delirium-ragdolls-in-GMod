@@ -337,7 +337,7 @@ impl Follower {
         // As the Playroom makes its agents.
         let agent = core::agent(&def.build, frames, yaw);
         // The Playroom's `face`: his standing forward (from his thighs) in the head capsule's frame.
-        let cap0 = frames[HEAD].rotation * delirium::nmdbm::rage_link(dms_game::HOMER_NM, HEAD);
+        let cap0 = frames[HEAD].rotation * delirium::nmdbm::rage_link(&def.build.links, HEAD);
         let axis = if (cap0 * Vec3::Y).z < 0.0 { -Vec3::Y } else { Vec3::Y };
         let fwd = Vec3::Z.cross(frames[4].translation - frames[1].translation).with_z(0.0).normalize_or(Vec3::Y);
         let ahead = cap0.inverse() * fwd;
@@ -433,7 +433,7 @@ impl Follower {
     /// and up, the head's radius. Forward is the standing pose's, taken in the capsule's frame (`rage_link`), as the
     /// Playroom takes it from its room's start.
     pub fn face(&self) -> (Vec3, Vec3, Vec3, f32) {
-        let link = delirium::nmdbm::rage_link(dms_game::HOMER_NM, HEAD);
+        let link = delirium::nmdbm::rage_link(&self.def.build.links, HEAD);
         let (h, c) = (self.agent.doll.frames().nth(HEAD).unwrap_or_default(), self.agent.doll.capsules().nth(HEAD).unwrap_or_default());
         let r = self.def.build.parts.get(HEAD).map_or(0.1, |p| p.radius);
         (h.rotation.inverse() * (c.translation - h.translation), link * self.face.0, link * self.face.1, r)

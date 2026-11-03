@@ -98,6 +98,17 @@ fn main() {
         eprintln!("{USAGE}");
         std::process::exit(2);
     };
+    if cmd == "body" {
+        // The SDK's C API reads Homer's build back from a dump, which carries no links since SDK v0.5: they go in as
+        // the Playroom takes them (`NM_LINKS`), DMS's own from `golden links`, before anything reads them (a OnceLock).
+        let file = ctx.out.join("homer.links");
+        if !file.is_file() {
+            eprintln!("golden: body: run `golden links` first (the SDK's C API takes Homer's links from {})", file.display());
+            std::process::exit(1);
+        }
+        // SAFETY: at the start of main, before any other thread is made.
+        unsafe { std::env::set_var("NM_LINKS", &file) };
+    }
     let r = match cmd.as_str() {
         "build" => build(&ctx),
         "dump" => dump(&ctx),
@@ -222,7 +233,7 @@ fn dump(ctx: &Ctx) -> Result<(), String> {
 
 fn links(ctx: &Ctx) -> Result<(), String> {
     ours(ctx)?;
-    let l = delirium::nmdbm::DERIVED_LINKS[dms_game::HOMER_NM].get().ok_or("DMS derived no links from the idle clip")?;
+    let l = dms_game::links().ok_or("DMS derived no links from the idle clip")?;
     let file = ctx.out.join("homer.links");
     write(&file, l.iter().map(|q| format!("{} {} {} {}\n", q.x, q.y, q.z, q.w)).collect::<String>())?;
     let base = ctx.out.join("links.playroom.frames");
@@ -254,11 +265,10 @@ fn lead(ctx: &Ctx) -> Result<(), String> {
         run_to(ctx.room(&["--headless", "60"])?, Some(&base), &ctx.out.join("links.playroom.log"), Duration::from_secs(300))?;
     }
     let theirs: Vec<Vec<f32>> = read_text(&base)?.lines().map(bits).collect();
-    let dump = std::ffi::CString::new(ours(ctx)?).map_err(|e| e.to_string())?;
+    ours(ctx)?;
     let g = dms_game::Game::open(ctx.game()?)?;
     let floor_row = g.materials().map_or(0, |m| dms_game::concrete(&dms_game::surfaces(&m)));
-    // SAFETY: `ours` loaded fred.xrt.
-    let mine = unsafe { lead_run(&dump, floor_row, theirs.len()) }?;
+    let mine = lead_run(&g, floor_row, theirs.len())?;
     write(&ctx.out.join("lead.dms.frames"), mine.iter().map(|f| frame_line(f) + "\n").collect::<String>())?;
     let same = theirs.iter().zip(&mine).take_while(|(a, b)| a == b).count();
     let worst = theirs.iter().zip(&mine).map(|(a, b)| {
@@ -272,37 +282,27 @@ fn lead(ctx: &Ctx) -> Result<(), String> {
                  {worst:.6} m (lead.dms.frames against links.playroom.frames)", theirs.len()))
 }
 
-/// The SDK's LEAD agent as `dms_selftest` makes it, `steps` steps of 1/60 s after `bodyBalance`.
-///
-/// # Safety
-/// fred.xrt is loaded (`ours`).
-unsafe fn lead_run(dump: &std::ffi::CStr, floor_row: u8, steps: usize) -> Result<Vec<Vec<f32>>, String> {
+/// The LEAD agent as `dms_selftest` makes it (the crate's, `module/src/selftest.rs`: Homer's build with its links,
+/// `nm_agent_create`'s placing, the Playroom room's floor, seed 0.3), `steps` steps of 1/60 s after `bodyBalance`.
+/// Not the C API's: since SDK v0.5 a build from a dump has no links (the dump doesn't carry them).
+fn lead_run(g: &dms_game::Game, floor_row: u8, steps: usize) -> Result<Vec<Vec<f32>>, String> {
+    use delirium::prelude::*;
+    let (build, frames) = g.homer()?;
+    let body = dms_game::body::Body::new(&build, &frames);
+    let placed: Vec<Transform> = body.placed(Vec3::ZERO, 0.0).into_iter().map(|(p, q)| Transform::from_translation(p).with_rotation(q)).collect();
     let (p, t) = dms_game::floor(true, 50.0);
-    // SAFETY: the SDK's own calls on the build, world and agent made here, with arrays as long as they say.
-    unsafe {
-        let b = sdk::nm_build_from_text(dump.as_ptr());
-        if b.is_null() {
-            return Err("nm_build_from_text failed".into());
-        }
-        let w = sdk::nm_world_create();
-        sdk::nm_world_add_mesh(w, p.as_ptr().cast(), p.len() as i32, t.as_ptr().cast(), t.len() as i32, vec![floor_row; t.len()].as_ptr());
-        let a = sdk::nm_agent_create(b, [0.0f32; 3].as_ptr(), 0.0, 0.3);
-        sdk::nm_agent_set_mode(a, sdk::NM_MODE_LEAD);
-        sdk::nm_msg_begin(a, c"bodyBalance".as_ptr());
-        sdk::nm_msg_set_bool(a, c"start".as_ptr(), 1);
-        sdk::nm_msg_send(a, w);
-        let mut out = vec![];
-        for _ in 0..steps {
-            sdk::nm_agent_step(a, w, 1.0 / 60.0);
-            let mut f = vec![0.0f32; 21 * 7];
-            sdk::nm_agent_get_part_transforms(a, f.as_mut_ptr(), 21);
-            out.push(f);
-        }
-        sdk::nm_agent_destroy(a);
-        sdk::nm_world_destroy(w);
-        sdk::nm_build_destroy(b);
-        Ok(out)
+    let mut world = delirium::collision::Collision::default();
+    world.add(&p, &t, &vec![floor_row; t.len()]);
+    let mut a = delirium::nm::Agent::new(&build, delirium::ragdoll::Ragdoll::new(&build, &placed, Vec3::ZERO), Quat::IDENTITY, 0.3);
+    let mut msgs = delirium::msg::State::default();
+    delirium::msg::send(&mut a, &build, &world, &mut msgs, "bodyBalance", &[("start", delirium::msg::Value::Bool(true))])
+        .map_err(|e| format!("bodyBalance: {e:?}"))?;
+    let mut out = vec![];
+    for _ in 0..steps {
+        a.step(&build, &world, 1.0 / 60.0, &[], &[]);
+        out.push(a.doll.frames().flat_map(|f| [f.translation.x, f.translation.y, f.translation.z, f.rotation.x, f.rotation.y, f.rotation.z, f.rotation.w]).collect());
     }
+    Ok(out)
 }
 
 /// A scenario: how the Playroom runs it.

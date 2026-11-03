@@ -739,7 +739,7 @@ impl Follower {
     fn car_react(&mut self, k: i32, sum: Vec3, at: Vec3, player: bool) {
         use delirium::bump::{self, Kind, Thing};
         let a = &self.agent;
-        let other = Thing { id: k, kind: Kind::Vehicle { player_driver: player } };
+        let other = Thing { id: k, kind: Kind::Vehicle { player_driver: player, train: None } };
         let imp = bump::Impact { impulse: sum.length(), dt: 1.0 / 60.0, component: a.doll.nearest(&self.def.build, at) as i32, other: Some(other) };
         let health = self.room.health;
         let ped = bump::Ped {
@@ -1230,7 +1230,7 @@ fn lines(b: &str, s: &Side) -> Vec<String> {
 fn hero_task(tp: &delirium_data::taskparams::TaskParams, task: &str, set: &str, head: Vec3, me: Vec3, fwd: Vec3, rand: &mut Rand) -> (Vec<String>, u32) {
     use delirium::meleetask::MeleeTask;
     let hit = Hit { attacker_head: Some(head), attacker_neck: Some(head), pos: me, fwd, ..Default::default() };
-    let mut t = if task == "flinch" { MeleeTask::Flinch { set: set.into(), started: false, lean_until: 0 } } else { MeleeTask::Balance { set: set.into(), started: false } };
+    let mut t = if task == "flinch" { MeleeTask::Flinch { set: set.into(), started: false, lean_until: 0 } } else { MeleeTask::Balance { set: set.into(), started: false, clock: 0 } };
     let lines = t.update(rand, tp, &hit, 0, false).iter().map(shottask::text).collect();
     (lines, if let MeleeTask::Flinch { lean_until, .. } = t { lean_until } else { 0 })
 }

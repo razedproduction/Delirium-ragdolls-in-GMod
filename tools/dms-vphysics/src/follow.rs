@@ -230,7 +230,7 @@ pub fn forces(
     kicks: impl IntoIterator<Item = (usize, Vec3, Vec3)>,
     timestep: f32,
 ) -> Vec<(Vec3, Vec3)> {
-    let g_nm = Vec3::NEG_Z * GRAVITY;
+    let g_nm = Vec3::NEG_Z * GRAVITY();
     let mut forces: Vec<(Vec3, Vec3)> = if asleep { vec![(Vec3::ZERO, Vec3::ZERO); PARTS] } else { drives.to_vec() };
     for (k, f) in forces.iter_mut().enumerate().filter(|_| !asleep) {
         let g = if gravity_off >> k & 1 != 0 { Vec3::ZERO } else { g_src };

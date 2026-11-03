@@ -8,9 +8,9 @@ torques, and the joints' armature is solved inside Box3D's solver.
 
 | Component | Where | What it gives | Rule |
 |---|---|---|---|
-| Delirium SDK **v0.2.2** (`91ee246`) | `../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium-sdk` | the C API `delirium_physics.h` (`nm_*`), the Rust crate `delirium_physics` (`rlib` + `cdylib`) | **read only**, a path dependency |
+| Delirium SDK **v0.6.0** (`93eed4d`) | `../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium-sdk` | the C API `delirium_physics.h` (`nm_*`), the Rust crate `delirium_physics` (`rlib` + `cdylib`) | **read only**, a path dependency |
 | VPhysics-Box3D (the fork) | `vphysics/` (git subtree, ADR 0015) | `vphysics.dll` + `IPhysicsNM` (`VBOX3D_NM_004`, `vphysics/include/vphysics_nm.h`) | changed only to match the Playroom (ADR 0008), upstream through `git subtree pull` ([docs/vphysics.md](docs/vphysics.md)) |
-| Delirium's documentation (v0.2.2) | `../delirium-physics (…)/docs/how-it-works.md`, `docs/modding.md`, `CHANGELOG.md` | how the engine works, the step, LEAD/FOLLOW, messages and their params, the Playroom's scripts and `settings.txt` | a reference; where it differs from the code, the Playroom's code is right |
+| Delirium's documentation (v0.6.0) | `../delirium-physics (…)/docs/how-it-works.md`, `docs/modding.md`, `docs/start-here.md`, `CHANGELOG.md` | how the engine works, the step, LEAD/FOLLOW, messages and their params, the Playroom's scripts and `settings.txt` | a reference; where it differs from the code, the Playroom's code is right |
 | The previous attempt | `../delirium-physics (gmod addon & api)` | notes and pitfalls (README) | only as a reference, its code isn't carried over |
 
 Key facts from the API the plan is built on:
@@ -275,6 +275,39 @@ nothing blows up; the limits are visible through `IPhysicsConstraint::GetConstra
 - [x] `golden`: dump byte for byte, links and lead bit for bit, `body` passes whole; `behaviour --source`: `stand`
       (60 s), `stand-1s`, `relax`, `relax-1s` match to 3 digits on every step. As before, `shot` (M6), `push` (the
       Playroom's camera; the COM now within 1.4 mm) and `catchfall` (the outbox, M4) don't match.
+
+### SDK update: Delirium v0.2.2 → v0.6.0 (2026-11-04)
+
+- [x] Upstream rewrote its history (v0.2.5 is a root commit now): the SDK's checkout moved to the tag `v0.6.0`
+      (detached), `v0.2.2` kept by its tag. `async-executor` pinned to the SDK's `Cargo.lock` (1.14.0).
+- [x] **The engine's numbers come from the player's game** (0.2.5/0.2.6, `delirium_data::kv`): all 0 until
+      `kv::unlock` with the game's program. `dms_game::Game::open` unlocks first (the Playroom's `numbers`: the PC
+      `GTAIV.exe` or the disc's `default.xex`, `xex::program`). Only one PC exe is known to the SDK (17 425 752 bytes);
+      the Steam Complete Edition's **1.2.0.59 (28 225 536 bytes) is refused** by the SDK and the Playroom alike. The
+      references and the bench now run on the Xbox 360 disc, unpacked by the Playroom (`--game <.iso>` → `game\`).
+- [x] API changes: Homer's links moved from the global `nmdbm::DERIVED_LINKS` into `Build::links` (`Rig::linked`;
+      `Game::homer` as the Playroom's `getup::homer`, `dms_game::links`); constants turned functions (`GRAVITY()`,
+      `ped::INSTANT()`); `shottask::bullet`'s `soft` (false, as the Playroom); `rage_link(&build.links, k)`;
+      `bump::Kind::Vehicle { train }`, `MeleeTask::Balance { clock }`.
+- [x] 0.6.0: on PC a file not loose is read from `pc\data\game.rpf` (the PC's `taskparams.txt` is only there):
+      `Game::archive` as the Playroom's `archive_read`.
+- [x] **A build read back from a dump has no links** (`Build::undump`, `nm_build_from_text`, the Playroom's `--export`
+      `build.txt`: the dump doesn't carry them, `nmdbm::asset_links` is empty without `NM_LINKS`), and its layout
+      differs (the hands 0.3 m off): the C API's Homer isn't the Playroom's. `dms_selftest` and `golden lead` moved to
+      the crate (`Agent::new` on Homer's build, `msg::send`): bit for bit with the Playroom, 60 steps; `DMS.BuildParts`
+      from `dms_game::body`; `golden body` hands DMS's links to the SDK through `NM_LINKS` (then exact). Left on the C
+      API: the bench's LEAD agent (`dms-ctl nm`, `behaviour --lead`) and `DMS.BuildJoints` (a printout).
+- [x] `golden`: `dump` byte for byte, `links` and `lead` bit for bit, `body` OK (all 3 steps), `dms_selftest` passes.
+      The references recorded anew (19 scenarios; `blast` twice: the first recording lost 12 steps of the window).
+- [ ] `behaviour --source`: 12 of 19 within (`catchfall`, `death`, `getup`, `nearmiss`, `push`, `relax`, `shot`,
+      `shotgun`, `stairs`, `stand-1s`, `stand`, `tasks`). Out: `kerb`, `lowwall`, `relax-1s` (known, M5), `drunk`
+      (out on the base too); **new**: `blast` (COM max 0.38 m, tolerance 0.30), `pool` (the end 0.45 m deep, the
+      Playroom 0.28), `rooftop` (he ends lying, 0.12 m, the Playroom's stands, 0.94), the same in two runs each.
+- [ ] Fitted bodies (male_07): 0.6.0's fix of fitted joints' pivots (`Ragdoll::jconst`: NM's own joints at the fit's
+      anchors, not Homer's scaled) and 0.5.0's `Build::fit` (neck and Spine0 capped by the legs, radii clamped round
+      the median scale, `heft`). `golden fit`: `stand` within; `push` COM mean 0.056 (0.062 before, tolerance 0.05),
+      `shot` 0.255 (0.213, 0.25), `catchfall` end 0.220 m (LEAD 0.165, 0.03). `golden body --fit`: the build exact
+      against `nm_build_fit`, but in the game the head's inertia 32 % off NM's (exact before).
 
 ### M4. The FOLLOW loop on the reference — 5–8 days (the main milestone)
 

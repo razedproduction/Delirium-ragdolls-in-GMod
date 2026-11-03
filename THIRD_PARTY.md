@@ -10,7 +10,7 @@ release is the repository's tag of that version: https://github.com/razedproduct
 
 `gmsv_dms_win64.dll` and `dms-homer.exe` are built with **Delirium** (the `delirium`, `delirium-data` and `delirium-sdk`
 crates), by PVCPC, licensed under GPL-3.0-only, linked in statically. Its source, the version these binaries are built
-from: https://github.com/PVCPC/delirium-physics, tag `v0.2.2`.
+from: https://github.com/PVCPC/delirium-physics, tag `v0.6.0`.
 
 Nothing else of Delirium's repository is in DMS: none of the Playroom's assets listed in its `CREDITS.md` (the taxi,
 the sky, textures, the font, the Portal and Skate 3 code), and no trained networks (`getup.net`, `walk.net`,
@@ -32,7 +32,9 @@ extension (the repository's `vphysics/` folder), licensed under the **MIT Licens
 ## Games
 
 - **Grand Theft Auto IV** is Rockstar Games'. No files of it, and nothing made from them, come with DMS: Homer's model
-  is made on your machine from your own copy, and NM's data is read from it as the game runs.
+  is made on your machine from your own copy, and NM's data is read from it as the game runs. Since Delirium v0.2.6
+  even the engine's numbers are read from your own `GTAIV.exe` (the Steam version) or the Xbox 360 disc's
+  `default.xex`.
 - **Garry's Mod** is Facepunch Studios'; the Source engine is Valve's.
 - NaturalMotion and euphoria are NaturalMotion's. DMS and Delirium aren't affiliated with or endorsed by Rockstar Games,
   Take-Two Interactive, NaturalMotion, Facepunch Studios or Valve.

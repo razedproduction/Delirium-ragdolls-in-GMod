@@ -39,13 +39,37 @@ pub struct Game {
     key: [u8; 32],
 }
 
+/// Homer's links (`nmrs::derive_links` from the idle clip) once derived, as the Playroom's `getup::LINKS` keeps them.
+static LINKS: std::sync::OnceLock<Vec<Quat>> = std::sync::OnceLock::new();
+
+/// Homer's links once `Game::homer` has laid his build out (the Playroom's `getup::links`).
+pub fn links() -> Option<&'static [Quat]> {
+    LINKS.get().map(Vec::as_slice).filter(|l| !l.is_empty())
+}
+
 /// Whether `dir` is a game folder the Playroom takes (its `is_game`, less PS3, which isn't supported here).
 pub fn is_game(dir: &Path) -> bool {
     dir.join("default.xex").is_file() || dir.join("GTAIV.exe").is_file() && dir.join("pc").is_dir()
 }
 
+/// Opens Delirium's numbers from the game's own program (`delirium_data::kv::unlock`, SDK v0.2.6+), as the
+/// Playroom's `numbers` does: the PC GTAIV.exe or the disc's default.xex (its key fetched the first time). Until
+/// then every engine constant is 0. Once opened, later calls are no-ops.
+fn unlock(dir: &Path, platform: Platform) -> Result<(), String> {
+    let exe = dir.join(if platform == Platform::Pc { "GTAIV.exe" } else { "default.xex" });
+    let prog = delirium_data::xex::program(&exe)?;
+    if delirium_data::kv::unlock(&prog) {
+        Ok(())
+    } else {
+        Err(format!(
+            "{}: not a version Delirium reads its numbers from (the Steam GTAIV.exe or the Xbox 360 disc's default.xex)",
+            exe.display()
+        ))
+    }
+}
+
 impl Game {
-    /// Opens the game at `dir` and finds its archive key. Sets `delirium_data::LE` for the PC's little-endian
+    /// Opens the game at `dir`, opens Delirium's numbers from its program (`unlock`) and finds its archive key. Sets `delirium_data::LE` for the PC's little-endian
     /// files, as the Playroom's `getup::key` does: call it before reading anything.
     pub fn open(dir: impl AsRef<Path>) -> Result<Game, String> {
         let dir = dir.as_ref().to_path_buf();
@@ -59,6 +83,7 @@ impl Game {
             ));
         }
         let platform = if dir.join("GTAIV.exe").is_file() { Platform::Pc } else { Platform::Xbox360 };
+        unlock(&dir, platform)?;
         delirium_data::LE.store(platform == Platform::Pc, std::sync::atomic::Ordering::Relaxed);
         let key = find_key(&dir, platform)?;
         Ok(Game { dir, platform, key })
@@ -87,12 +112,13 @@ impl Game {
     }
 
     /// A file out of `rpf` (`common.rpf` or `xbox360.rpf`), as the Playroom's `archive_read` finds it: on PC,
-    /// loose under `common\` or `pc\`.
+    /// loose under `common\` or `pc\`, else (SDK v0.6.0) packed and encrypted in `pc\data\game.rpf` (the PC's
+    /// `taskparams.txt` is only there), found by its path or its name.
     pub fn archive(&self, rpf_name: &str, path: &str) -> Result<Vec<u8>, String> {
         if self.platform == Platform::Pc {
             let sub = if rpf_name == "common.rpf" { "common" } else { "pc" };
             let file = self.dir.join(sub).join(self.plat(path));
-            return std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()));
+            return std::fs::read(&file).or_else(|e| self.packed(path).ok_or(format!("{}: {e}", file.display())));
         }
         let file = self.dir.join(self.plat(rpf_name));
         let data = std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
@@ -102,12 +128,31 @@ impl Game {
         rpf::read(&data, e)
     }
 
+    /// A PC file packed in `pc\data\game.rpf`, the Playroom's `archive_read` fallback: the entry with this path or
+    /// name, decrypted (whole 16-byte blocks) and its trailing zeros dropped.
+    fn packed(&self, path: &str) -> Option<Vec<u8>> {
+        let d = std::fs::read(self.dir.join("pc/data/game.rpf")).ok()?;
+        let key = self.key();
+        let toc = rpf::read_toc(&d, &key).unwrap_or_default();
+        let name = path.rsplit('/').next()?;
+        let e = toc.iter().find(|e| {
+            e.path.eq_ignore_ascii_case(path) || e.path.rsplit('/').next().is_some_and(|n| n.eq_ignore_ascii_case(name))
+        })?;
+        let mut x = rpf::read(&d, e).ok()?;
+        let n = x.len() / 16 * 16;
+        key.decrypt(&mut x[..n]);
+        while x.last() == Some(&0) {
+            x.pop();
+        }
+        Some(x)
+    }
+
     /// NM's character, `data/naturalmotion/fred.xrt` (`Fred.art` on PC).
     pub fn fred(&self) -> Result<Vec<u8>, String> {
         self.archive("xbox360.rpf", "data/naturalmotion/fred.xrt")
     }
 
-    /// The tasks' tuning, `data/taskparams.txt`; none if the game hasn't one (the PC version), and then the
+    /// The tasks' tuning, `data/taskparams.txt` (on PC out of `game.rpf`, `packed`); none if the game hasn't one, and then the
     /// Playroom runs NM's defaults.
     pub fn taskparams(&self) -> Option<String> {
         self.archive("common.rpf", "data/taskparams.txt").ok().map(|d| String::from_utf8_lossy(&d).into_owned())
@@ -140,24 +185,24 @@ impl Game {
             .unwrap_or(3)
     }
 
-    /// Homer's build and its standing frames, as the Playroom makes them with `--game`: `getup::homer` (which
-    /// also sets `delirium::nmdbm::DERIVED_LINKS` from the idle clip) and then `Clips::stand_up`.
-    /// fred.xrt has to be loaded first (`nm_init_memory`), as in the Playroom.
+    /// Homer's build and its standing frames, as the Playroom makes them with `--game`: `getup::homer` (the build
+    /// laid out with the links derived from the idle clip, kept for later builds as its `LINKS`) and then
+    /// `Clips::stand_up`. fred.xrt has to be loaded first (`nm_init_memory`), as in the Playroom.
     pub fn homer(&self) -> Result<(Build, Vec<Transform>), String> {
         if delirium::nmrs::ASSET[HOMER_NM].get().is_none() {
             return Err("fred.xrt isn't loaded yet (nm_init_memory first)".into());
         }
         let idle = self.idle()?;
-        let mut b = self.homer_build()?;
-        let links_set = delirium::nmdbm::logged_links().is_some() || delirium::nmdbm::DERIVED_LINKS[HOMER_NM].get().is_some();
-        if !links_set {
+        let links = LINKS.get().cloned().unwrap_or_else(|| delirium::nmdbm::asset_links(HOMER_NM));
+        let mut b = self.homer_build(links)?;
+        if b.links.is_empty() {
             let turn = Transform::from_rotation(Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2));
             let stand: Vec<Quat> = idle.place(&b, turn)?.iter().map(|f| f.rotation).collect();
             if let Some(l) = delirium::nmrs::derive_links(&b, &stand) {
-                let _ = delirium::nmdbm::DERIVED_LINKS[HOMER_NM].set(l);
-                b = self.homer_build()?;
+                b = self.homer_build(l)?;
             }
         }
+        let _ = LINKS.set(b.links.clone());
         let frames = idle.stand_up(&mut b)?;
         Ok((b, frames))
     }
@@ -170,13 +215,13 @@ impl Game {
     }
 
     /// `getup::homer_build`: the ped's fragment through the same `Rig` Delirium builds Homer with.
-    fn homer_build(&self) -> Result<Build, String> {
+    fn homer_build(&self, links: Vec<Quat>) -> Result<Build, String> {
         let frag = self.homer_fragment()?;
         let bones = skeleton::read(&frag, model::fragment_root(&frag)?)?;
         let parts = delirium_data::ragdoll::read(&frag)?;
         let parents: Vec<Option<usize>> = bones.iter().map(|b| b.parent).collect();
         let bind: Vec<(Vec3, Quat)> = bones.iter().map(|b| (Vec3::from(b.translation), Quat::from_array(b.rotation).normalize())).collect();
-        Rig::new(&parts, &parents, &bind, &bones, HOMER_NM).map(|r| r.build).ok_or(format!("{HOMER_MODEL}.xft: no ragdoll"))
+        Rig::linked(&parts, &parents, &bind, &bones, HOMER_NM, links).map(|r| r.build).ok_or(format!("{HOMER_MODEL}.xft: no ragdoll"))
     }
 
     /// The player's skeleton and `move_player`'s `idle`, the part of `getup::Clips::load` that `homer` and

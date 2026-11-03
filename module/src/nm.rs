@@ -252,18 +252,8 @@ impl Drop for World {
     }
 }
 
-/// One part of a build.
-pub struct PartInfo {
-    pub mass: f32,
-    pub radius: f32,
-    pub half: f32,
-    pub parent: Option<usize>,
-    /// Its frame in the build's pose: position, rotation (x, y, z, w).
-    pub pos: [f32; 3],
-    pub rot: [f32; 4],
-}
-
-/// `NmBuild`: a body (Homer's).
+/// `NmBuild`: a body (Homer's). Read back from a dump it has no links (SDK v0.5+: the dump doesn't carry them), so
+/// its agents stand in another pose than the Playroom's: only the bench's LEAD agent and `DMS.BuildJoints` use it.
 pub struct Build(NonNull<sdk::NmBuild>);
 
 // SAFETY: a build isn't changed after it's made; the SDK's calls on it only read it.
@@ -287,18 +277,6 @@ impl Build {
     pub fn part_count(&self) -> usize {
         // SAFETY: a live build.
         unsafe { sdk::nm_build_part_count(self.ptr()) }.max(0) as usize
-    }
-
-    /// `nm_build_part_info` and `nm_build_part_frame` of part `i`.
-    pub fn part(&self, i: usize) -> Result<PartInfo, String> {
-        let (mut mass, mut radius, mut half, mut parent) = (0.0, 0.0, 0.0, -1);
-        let (mut pos, mut rot) = ([0.0; 3], [0.0; 4]);
-        // SAFETY: a live build; the outputs are as big as the call writes.
-        unsafe {
-            check("nm_build_part_info", sdk::nm_build_part_info(self.ptr(), i as i32, &mut mass, &mut radius, &mut half, &mut parent))?;
-            check("nm_build_part_frame", sdk::nm_build_part_frame(self.ptr(), i as i32, pos.as_mut_ptr(), rot.as_mut_ptr()))?;
-        }
-        Ok(PartInfo { mass, radius, half, parent: usize::try_from(parent).ok(), pos, rot })
     }
 }
 

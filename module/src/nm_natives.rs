@@ -140,14 +140,14 @@ unsafe fn message_params_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(build_parts => build_parts_impl);
-/// `DMS.BuildParts()`: Homer's build, part by part (`nm_build_part_info`, `nm_build_part_frame`): `{index, name,
-/// mass, radius, half, parent, pos, rot}` (`parent` -1 for the root; the frame in the build's standing pose).
+/// `DMS.BuildParts()`: Homer's build, part by part, as NM's physics has it (`dms_game::body`, the crate's build with
+/// its links): `{index, name, mass, radius, half, parent, pos, rot}` (`parent` -1 for the root; the frame in the
+/// build's standing pose). Not the C API's build: since SDK v0.5 one read from a dump has no links and another pose.
 unsafe fn build_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let d = loaded()?;
-    let n = d.build.part_count();
+    let n = d.body.parts.len();
     unsafe { (api.createtable)(l, n as c_int, 0) };
-    for i in 0..n {
-        let p = d.build.part(i)?;
+    for (i, p) in d.body.parts.iter().enumerate() {
         let name = nm::part_name(i)?;
         unsafe {
             (api.createtable)(l, 0, 8);
@@ -157,8 +157,8 @@ unsafe fn build_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
             api.set_number(l, c"radius", f64::from(p.radius));
             api.set_number(l, c"half", f64::from(p.half));
             api.set_number(l, c"parent", p.parent.map_or(-1.0, |j| j as f64));
-            api.set_vector(l, c"pos", &p.pos);
-            api.set_vector(l, c"rot", &p.rot);
+            api.set_vector(l, c"pos", &p.pos.to_array());
+            api.set_vector(l, c"rot", &p.rot.to_array());
             api.append(l, i + 1);
         }
     }
