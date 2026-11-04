@@ -5,8 +5,8 @@
 //! FOLLOW as Homer is, the model's bones posed from its parts.
 //!
 //! Fitted bodies are kept by the model's path and its checksum for the session; nothing of a model is written
-//! anywhere. The swap (`dms_attach`): the native body takes the ragdoll's pose and every part's velocity, and gives
-//! them back to the model's objects on `dms_detach` (`DMS.PoseModel`).
+//! anywhere. The swap (`dmr_attach`): the native body takes the ragdoll's pose and every part's velocity, and gives
+//! them back to the model's objects on `dmr_detach` (`DMR.PoseModel`).
 
 use std::collections::HashMap;
 use std::ffi::{CStr, c_int};
@@ -70,7 +70,7 @@ fn fit(d: &data::Data, s: &Skeleton, model: &str, names: Option<&[(String, Strin
 static FITS: Mutex<Option<HashMap<String, Arc<Fitted>>>> = Mutex::new(None);
 
 fn fitted(key: &str) -> Result<Arc<Fitted>, String> {
-    FITS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().and_then(|m| m.get(key).cloned()).ok_or_else(|| format!("{key}: not fitted (DMS.RagdollFit)"))
+    FITS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().and_then(|m| m.get(key).cloned()).ok_or_else(|| format!("{key}: not fitted (DMR.RagdollFit)"))
 }
 
 /// Drops the fitted bodies (the module's unload, docs/adr/0021).
@@ -81,7 +81,7 @@ pub fn unload() {
 }
 
 native!(model_skeleton => model_skeleton_impl);
-/// `DMS.ModelSkeleton(mdl)`: the `.mdl`'s bytes (`file.Read(model, "GAME")`) read: `{name, version, checksum,
+/// `DMR.ModelSkeleton(mdl)`: the `.mdl`'s bytes (`file.Read(model, "GAME")`) read: `{name, version, checksum,
 /// bones = {{name, parent, pos, rot, mesh_pos, mesh_rot, physics, pose_gap, pose_turn}, ...}}`, `parent` 0-based (-1
 /// for a root), `pos` and `rot` the bind pose in the model's space (units, quaternion), `mesh_pos` and `mesh_rot` the
 /// mesh's bind (`poseToBone` inverted), `pose_gap` (units) and `pose_turn` (degrees) how far they are apart.
@@ -243,7 +243,7 @@ unsafe fn push_strings(api: &Api, l: *mut LuaState, items: &[String]) {
 }
 
 native!(model_classify => model_classify_impl);
-/// `DMS.ModelClassify(mdl[, mapping])`: what the `.mdl`'s skeleton is to DMS (ROADMAP M12): `{rig, complete,
+/// `DMR.ModelClassify(mdl[, mapping])`: what the `.mdl`'s skeleton is to DMR (ROADMAP M12): `{rig, complete,
 /// humanoid, why, map = {[part] = bone}, missing = {parts}, problems = {...}, report = {...}, parts = {NM's 21 part
 /// names}, optional = {[part] = true}}`; `rig` a known rig's name, `by names`, `mapped` (with `mapping`), `unknown` or
 /// `not humanoid`; `report` the reader's (a broken bind pose).
@@ -294,7 +294,7 @@ unsafe fn push_fit_summary(api: &Api, l: *mut LuaState, f: &Fitted) {
 }
 
 native!(ragdoll_forget => ragdoll_forget_impl);
-/// `DMS.RagdollForget(model)`: the model's kept fit dropped (its mapping changed); bodies already made keep theirs.
+/// `DMR.RagdollForget(model)`: the model's kept fit dropped (its mapping changed); bodies already made keep theirs.
 unsafe fn ragdoll_forget_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let key = unsafe { api.check_string(l, 1)? };
     if let Some(m) = FITS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
@@ -304,7 +304,7 @@ unsafe fn ragdoll_forget_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(ragdoll_fit => ragdoll_fit_impl);
-/// `DMS.RagdollFit(model, mdl[, mapping[, edits]])`: Homer's build fitted to the humanoid `.mdl` (`model` its path, `mdl` its
+/// `DMR.RagdollFit(model, mdl[, mapping[, edits]])`: Homer's build fitted to the humanoid `.mdl` (`model` its path, `mdl` its
 /// bytes) by its rig or `mapping` (`{[part] = bone}`, ROADMAP M12), kept by the path, the `.mdl`'s checksum and the
 /// mapping and edits (`edits_arg`; a changed model, mapping or edits is fitted again): `{height, mass, rig, map, homer_height, homer_mass, checksum,
 /// cached, ms, warnings = {...}, bones = {[bone] = part}, finish = {{bone, parent}, ...}, parts = {{name, mass,
@@ -315,7 +315,7 @@ unsafe fn ragdoll_fit_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
     let bytes = unsafe { api.check_bytes(l, 2)? };
     let names = unsafe { mapping_arg(api, l, 3)? };
     let edits = unsafe { edits_arg(api, l, 4)? };
-    let d = data::get().ok_or_else(|| format!("NM's data isn't loaded (DMS.LoadData): {}", data::how_to()))?;
+    let d = data::get().ok_or_else(|| format!("NM's data isn't loaded (DMR.LoadData): {}", data::how_to()))?;
     let started = std::time::Instant::now();
     let checksum = i32_at(bytes, 8).unwrap_or(0);
     let kept = fitted(&key).ok().filter(|f| f.checksum == checksum && f.names == names && f.edits == edits);
@@ -368,7 +368,7 @@ unsafe fn ragdoll_fit_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(fit_dump => fit_dump_impl);
-/// `DMS.FitDump(model)`: the fitted build as the Playroom's `NM_DUMP` writes one (`Build::dump`).
+/// `DMR.FitDump(model)`: the fitted build as the Playroom's `NM_DUMP` writes one (`Build::dump`).
 unsafe fn fit_dump_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let f = fitted(&unsafe { api.check_string(l, 1)? })?;
     unsafe { api.push_str(l, &f.def.build.dump(&f.frames)) };
@@ -376,7 +376,7 @@ unsafe fn fit_dump_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(fit_joints => fit_joints_impl);
-/// `DMS.FitJoints(model)`: the 21 joints Homer's build was fitted to (`Build::fit`'s input, as `nm_build_fit` takes
+/// `DMR.FitJoints(model)`: the 21 joints Homer's build was fitted to (`Build::fit`'s input, as `nm_build_fit` takes
 /// them), a line `x y z` (m) each, for `golden body --fit` to fit Homer's build itself: the dump can't carry a fitted
 /// build (its sizes).
 unsafe fn fit_joints_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -387,7 +387,7 @@ unsafe fn fit_joints_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> 
 }
 
 native!(fit_lead => fit_lead_impl);
-/// `DMS.FitLead(model, steps[, message])`: the fitted body in LEAD (NM's own physics, the crate as the Playroom runs
+/// `DMR.FitLead(model, steps[, message])`: the fitted body in LEAD (NM's own physics, the crate as the Playroom runs
 /// it) on the Playroom's floor, `bodyBalance` from the start (or `message`): `{z = {pelvis height per step}, fell}`
 /// (m), whether it stands without Box3D at all.
 unsafe fn fit_lead_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -552,12 +552,12 @@ fn parts_from_model(f: &Fitted, objects: &[(String, *mut IPhysicsObject, Vec3)])
 }
 
 native!(ragdoll_body => ragdoll_body_impl);
-/// `DMS.RagdollBody(model, owner, objects | {pos =, yaw =})`: the fitted body made by the fork in the environment of
+/// `DMR.RagdollBody(model, owner, objects | {pos =, yaw =})`: the fitted body made by the fork in the environment of
 /// `owner` (a PhysObj of the model's ragdoll, whose entity the bodies stand in for): NM's capsules and boxes as
-/// `dms-homer` hulls them (the fork keeps the hulls), NM's masses, a ragdoll constraint per joint, bound to NM's
+/// `dms_vphysics::hull` hulls them (the fork keeps the hulls), NM's masses, a ragdoll constraint per joint, bound to NM's
 /// body (pivots, frames, limits, inertia, materials) and only NM's self-collision pairs colliding (`VBOX3D_NM_006`).
 /// Posed as the model's ragdoll is now and moving as its objects do (`objects`: `{{name = bone, obj = PhysObj, pos =
-/// its origin}, ...}`, as `DMS.PoseModel` gives them back), or standing as `nm_agent_create` puts one at `pos` (units,
+/// its origin}, ...}`, as `DMR.PoseModel` gives them back), or standing as `nm_agent_create` puts one at `pos` (units,
 /// its feet's level) facing `yaw` (degrees). Its handle and how long it took (ms).
 unsafe fn ragdoll_body_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let f = fitted(&unsafe { api.check_string(l, 1)? })?;
@@ -604,7 +604,7 @@ unsafe fn ragdoll_body_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(ragdoll_warm => ragdoll_warm_impl);
-/// `DMS.RagdollWarm(model, owner, part)`: the fork's hull of the fitted body's part `part` (0-based) made ahead of the
+/// `DMR.RagdollWarm(model, owner, part)`: the fork's hull of the fitted body's part `part` (0-based) made ahead of the
 /// body (a body made and gone at once; the fork keeps the hull, `CreateBody`), so the first body of a model doesn't
 /// make all 21 in one frame (ROADMAP M11: a death). How long it took (ms); nothing for a part past the last.
 unsafe fn ragdoll_warm_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -617,7 +617,7 @@ unsafe fn ragdoll_warm_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
     }
     let Some(p) = f.def.body.parts.get(k) else { return Ok(0) };
     let started = std::time::Instant::now();
-    let points: Vec<[f32; 3]> = dms_homer::hull::points(&p.shape).iter().map(|v| v.to_array()).collect();
+    let points: Vec<[f32; 3]> = dms_vphysics::hull::points(&p.shape).iter().map(|v| v.to_array()).collect();
     // SAFETY: a PhysObj Lua handed over; outside the step callback (Lua). The body goes before any step.
     unsafe {
         let env = nm.object_environment(owner);
@@ -631,8 +631,8 @@ unsafe fn ragdoll_warm_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(ragdoll_follow => ragdoll_follow_impl);
-/// `DMS.RagdollFollow(model, handle, yaw, floor)`: NM on a native body (`DMS.Follow` for a fitted one): `yaw` where
-/// it faces (rad), `floor` (m) where NM's frame starts. The agent's id; `DMS.Unfollow` it before `DMS.RagdollRemove`.
+/// `DMR.RagdollFollow(model, handle, yaw, floor)`: NM on a native body (`DMR.Follow` for a fitted one): `yaw` where
+/// it faces (rad), `floor` (m) where NM's frame starts. The agent's id; `DMR.Unfollow` it before `DMR.RagdollRemove`.
 unsafe fn ragdoll_follow_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let f = fitted(&unsafe { api.check_string(l, 1)? })?;
     let n = native(unsafe { api.check_number(l, 2)? } as u32)?;
@@ -655,8 +655,8 @@ pub fn fitted_def(model: &str) -> Result<Arc<BodyDef>, String> {
 }
 
 native!(ragdoll_report => ragdoll_report_impl);
-/// `DMS.RagdollReport(model, handle)`: the native body as the game has it, for `golden body --fit` (as
-/// `DMS_HomerReport` has Homer's): a `part <name> <centre x y z> <rotation x y z w> <centre again> <mass> <inertia's
+/// `DMR.RagdollReport(model, handle)`: the native body as the game has it, for `golden body --fit` (as
+/// `DMR_HomerReport` has Homer's): a `part <name> <centre x y z> <rotation x y z w> <centre again> <mass> <inertia's
 /// diagonal> <damping lin ang> <tensor, 9>` line a part (m, kg, kg m^2; no bone of its own, so its centre stands for
 /// the origin), then `joints <found by FindConstraint> <objects>`.
 unsafe fn ragdoll_report_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -686,7 +686,7 @@ unsafe fn ragdoll_report_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(ragdoll_remove => ragdoll_remove_impl);
-/// `DMS.RagdollRemove(handle)`: the native body's joints and bodies gone (its agent taken off first, `DMS.Unfollow`).
+/// `DMR.RagdollRemove(handle)`: the native body's joints and bodies gone (its agent taken off first, `DMR.Unfollow`).
 unsafe fn ragdoll_remove_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let handle = unsafe { api.check_number(l, 1)? } as u32;
     let n = NATIVE.lock().unwrap_or_else(|e| e.into_inner()).as_mut().and_then(|(_, m)| m.remove(&handle));
@@ -698,7 +698,7 @@ unsafe fn ragdoll_remove_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(ragdoll_shapes => ragdoll_shapes_impl);
-/// `DMS.RagdollShapes(model)`: the fitted body's parts' shapes in their frames, for drawing NM's body over a ragdoll
+/// `DMR.RagdollShapes(model)`: the fitted body's parts' shapes in their frames, for drawing NM's body over a ragdoll
 /// (the mapping editor's world view): `{{name, shape = "capsule", a, b, radius} | {name, shape = "box", ang, half},
 /// ...}` (units; `ang` Source's angles in the part's frame).
 unsafe fn ragdoll_shapes_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -729,7 +729,7 @@ unsafe fn ragdoll_shapes_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(ragdoll_parts => ragdoll_parts_impl);
-/// `DMS.RagdollParts(handle)`: the native body's parts as they are now, a flat `{x, y, z, pitch, yaw, roll, ...}` per
+/// `DMR.RagdollParts(handle)`: the native body's parts as they are now, a flat `{x, y, z, pitch, yaw, roll, ...}` per
 /// part in part order (units, degrees), for drawing NM's body over the ragdoll.
 unsafe fn ragdoll_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let parts = native(unsafe { api.check_number(l, 1)? } as u32)?.objects;
@@ -753,7 +753,7 @@ unsafe fn ragdoll_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Strin
 }
 
 native!(pose_model => pose_model_impl);
-/// `DMS.PoseModel(model, handle)`: where the model's mapped bones are with the native body's parts as they are now
+/// `DMR.PoseModel(model, handle)`: where the model's mapped bones are with the native body's parts as they are now
 /// (S4): `{[bone name] = {pos (units), ang = {x = pitch, y = yaw, z = roll}, rot (quaternion), vel (m/s, the bone's
 /// origin's), spin (rad/s, world)}}`, for posing the model every tick and for handing the motion back on detach.
 unsafe fn pose_model_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {

@@ -1,4 +1,4 @@
-//! Debug natives on the `DMS` table: direct access to `IPhysicsNM` from Lua (ROADMAP M1).
+//! Debug natives on the `DMR` table: direct access to `IPhysicsNM` from Lua (ROADMAP M1).
 //!
 //! Vectors are SI and world, as `IPhysicsNM` takes them. Vector arguments are a `Vector` or `{x, y, z}`.
 
@@ -8,7 +8,7 @@ use crate::ffi::vphysics_nm::{self, MAX_ARMATURE, Nm};
 use crate::lua::{self, Api, LuaState, TBOOLEAN, native};
 use crate::step;
 
-/// Every native, by its name in `DMS`.
+/// Every native, by its name in `DMR`.
 pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
     (c"Available", available),
     (c"InterfaceVersion", interface_version),
@@ -29,14 +29,14 @@ fn nm() -> Result<Nm, String> {
 }
 
 native!(available => available_impl);
-/// `DMS.Available()`: whether the loaded vphysics has `IPhysicsNM`.
+/// `DMR.Available()`: whether the loaded vphysics has `IPhysicsNM`.
 unsafe fn available_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     unsafe { (api.pushboolean)(l, vphysics_nm::get().is_some().into()) };
     Ok(1)
 }
 
 native!(interface_version => interface_version_impl);
-/// `DMS.InterfaceVersion()`: `"VBOX3D_NM_003"`, `"VBOX3D_NM_002"`, `"VBOX3D_NM_001"` or nil.
+/// `DMR.InterfaceVersion()`: `"VBOX3D_NM_003"`, `"VBOX3D_NM_002"`, `"VBOX3D_NM_001"` or nil.
 unsafe fn interface_version_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     match vphysics_nm::get() {
         Some(nm) => unsafe { api.push_str(l, nm.version.name()) },
@@ -46,7 +46,7 @@ unsafe fn interface_version_impl(api: &Api, l: *mut LuaState) -> Result<c_int, S
 }
 
 native!(body_state => body_state_impl);
-/// `DMS.BodyState(physobj)`: `{pos, rot, vel, angvel}` (m, quaternion xyzw, m/s, rad/s), nil if it fails.
+/// `DMR.BodyState(physobj)`: `{pos, rot, vel, angvel}` (m, quaternion xyzw, m/s, rad/s), nil if it fails.
 unsafe fn body_state_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
     let object = unsafe { api.check_physobj(l, 1)? };
@@ -70,7 +70,7 @@ unsafe fn body_state_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> 
 }
 
 native!(set_body_state => set_body_state_impl);
-/// `DMS.SetBodyState(physobj, pos, rot, vel, angvel)`: `DMS.BodyState`'s inverse (`SetBodyState`, `VBOX3D_NM_006`):
+/// `DMR.SetBodyState(physobj, pos, rot, vel, angvel)`: `DMR.BodyState`'s inverse (`SetBodyState`, `VBOX3D_NM_006`):
 /// the body teleported there, moving so. False if it's refused (frozen, static), nil before `_006`.
 unsafe fn set_body_state_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
@@ -91,7 +91,7 @@ unsafe fn set_body_state_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(body_inertia => body_inertia_impl);
-/// `DMS.BodyInertia(physobj)`: the inertia tensor Box3D turns the body with, 9 numbers row by row (kg m^2, about the
+/// `DMR.BodyInertia(physobj)`: the inertia tensor Box3D turns the body with, 9 numbers row by row (kg m^2, about the
 /// centre of mass in the body's frame); nil before `VBOX3D_NM_003`.
 unsafe fn body_inertia_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
@@ -110,7 +110,7 @@ unsafe fn body_inertia_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(drive => drive_impl);
-/// `DMS.Drive(physobj, force, torque[, steps = 1])`: force (N) at the centre of mass and torque (Nm), world, over
+/// `DMR.Drive(physobj, force, torque[, steps = 1])`: force (N) at the centre of mass and torque (Nm), world, over
 /// the next `steps` physics steps. True if it was taken.
 unsafe fn drive_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
@@ -133,7 +133,7 @@ unsafe fn drive_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(find_joint => find_joint_impl);
-/// `DMS.FindJoint(physA, physB)`: whether a constraint joins the two objects.
+/// `DMR.FindJoint(physA, physB)`: whether a constraint joins the two objects.
 unsafe fn find_joint_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
     let a = unsafe { api.check_physobj(l, 1)? };
@@ -144,7 +144,7 @@ unsafe fn find_joint_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> 
 }
 
 native!(set_armature => set_armature_impl);
-/// `DMS.SetArmature(physA, physB, value)`: the armature (kg m^2) of the joint between the two objects, clamped to
+/// `DMR.SetArmature(physA, physB, value)`: the armature (kg m^2) of the joint between the two objects, clamped to
 /// 1e6. False if there's no such joint or the value is rejected.
 unsafe fn set_armature_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
@@ -158,7 +158,7 @@ unsafe fn set_armature_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(get_armature => get_armature_impl);
-/// `DMS.GetArmature(physA, physB)`: the armature of the joint between the two objects, nil for no joint.
+/// `DMR.GetArmature(physA, physB)`: the armature of the joint between the two objects, nil for no joint.
 unsafe fn get_armature_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
     let a = unsafe { api.check_physobj(l, 1)? };
@@ -175,7 +175,7 @@ unsafe fn get_armature_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(substep_count => substep_count_impl);
-/// `DMS.SubstepCount()`: Box3D sub-steps per physics step.
+/// `DMR.SubstepCount()`: Box3D sub-steps per physics step.
 unsafe fn substep_count_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = nm()?;
     unsafe { (api.pushnumber)(l, f64::from(nm.substep_count())) };
@@ -183,8 +183,8 @@ unsafe fn substep_count_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Strin
 }
 
 native!(hover => hover_impl);
-/// `DMS.Hover(physobj, massKg, gravity)` holds the object up with `massKg * gravity` (m/s^2) newtons every step,
-/// `DMS.Hover(physobj, false)` stops it. Call the latter before the object goes.
+/// `DMR.Hover(physobj, massKg, gravity)` holds the object up with `massKg * gravity` (m/s^2) newtons every step,
+/// `DMR.Hover(physobj, false)` stops it. Call the latter before the object goes.
 unsafe fn hover_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     nm()?;
     let object = unsafe { api.check_physobj(l, 1)? };
@@ -209,7 +209,7 @@ unsafe fn hover_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(shutdown => shutdown_impl);
-/// `DMS.Shutdown()`: drops every drive and removes the step callback, for the `ShutDown` hook.
+/// `DMR.Shutdown()`: drops every drive and removes the step callback, for the `ShutDown` hook.
 unsafe fn shutdown_impl(_api: &Api, _l: *mut LuaState) -> Result<c_int, String> {
     step::shutdown();
     Ok(0)

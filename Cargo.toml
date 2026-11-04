@@ -1,9 +1,11 @@
 [workspace]
-members = ["module", "tools/dms-ctl", "tools/dms-fit", "tools/dms-game", "tools/dms-homer", "tools/dms-map", "tools/dms-rig", "tools/dms-vphysics", "tools/golden"]
+# The core (tools/dms-game, tools/dms-vphysics, tools/dms-ctl and the fork) is the golden checkout's, next to this
+# one, read only (docs/adr/0036): path dependencies on "../DMS in Gmod", never a copy.
+members = ["module", "tools/dmr-check", "tools/dmr-ctl", "tools/dms-fit", "tools/dms-rig"]
 resolver = "3"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-only"
 publish = false

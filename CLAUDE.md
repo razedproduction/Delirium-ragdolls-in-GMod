@@ -1,118 +1,102 @@
 # CLAUDE.md
 
-Аддон Garry's Mod: Delirium (active ragdoll в стиле NaturalMotion) в режиме **FOLLOW** на форке физики
-VPhysics-Box3D. Тело — `prop_ragdoll` Homer; Delirium каждый физический шаг читает части через `IPhysicsNM` и
-возвращает силы, моменты и armature суставов. План — [ROADMAP.md](ROADMAP.md), решения — [docs/adr/](docs/adr/README.md).
+DMR — аддон Garry's Mod: Delirium (active ragdoll в стиле NaturalMotion) в режиме **FOLLOW** на **собственных
+рэгдоллах GMod**, NPC и моделях из Workshop. Собственное тело NM (build Homer из GTA IV игрока) подгоняется под скелет
+модели (`tools/dms-fit`), форк VPhysics-Box3D делает его нативно под моделью, Delirium каждый физический шаг
+возвращает силы и моменты, модель позируется по частям. План — [ROADMAP.md](ROADMAP.md), решения —
+[docs/adr/](docs/adr/README.md) (раскол с golden-проектом — [ADR 0036](docs/adr/0036-split-from-golden.md)).
 
 С пользователем общаться **по-русски**.
 
 ## Жёсткие правила
 
-- **Playroom (`delirium-room`) — golden** (ADR 0008). Homer в GMod должен вести себя один в один как в Playroom.
-  **В работу Delirium не вмешиваемся**: те же входные данные (`fred.xrt`, `taskparams.txt`, build Homer, шаг 1/60,
-  сообщения с теми же параметрами), drives как есть — без масштабирования, фильтров и своего тюнинга параметров NM.
-  Единственное исключение — компенсация гравитации (ADR 0007). Если поведение расходится с Playroom, ищем
-  расхождение во входных данных или в физике (чинится в форке), а не подкручиваем NM. Любое изменение тела или
-  цикла подтверждается сверкой с Playroom (`tools/golden`: `NM_DUMP`, `--headless --script --rec`), не «на глаз».
-  Слой реакций Playroom (`delirium-room`: что на какое событие шлётся агенту, задачи движка, `extras.outbox`, урон,
-  вставание) — тоже эталон: повторять тем же кодом через крейт `delirium`, где C API не хватает (ADR 0016), а не
-  придумывать свою таблицу реакций. Справочник — `docs/how-it-works.md` и `docs/modding.md` в каталоге SDK.
-  Пользовательский тюнинг поведений из меню (ADR 0009) — отдельная фича для игрока: только через публичный
-  интерфейс NM (параметры сообщений, наборы `taskparams`), по умолчанию выключен (= Playroom), golden-прогоны
-  всегда без него; расхождения с Playroom тюнингом не исправлять.
-  Playroom собирается только так: `cargo build --release -p delirium-room --locked --manifest-path "<SDK>\Cargo.toml"
-  --target-dir target-playroom` (в каталог SDK ничего не пишется).
-
+- **Golden-проект — соседний чекаут `E:\GitStuff\MyRepos\DMS in Gmod`** (`razedproduction/Delirium-physics-in-GMod`,
+  только Homer, один в один с Playroom). Отсюда он — **только чтение**: ничего там не менять, не собирать в его
+  `target/`, не переключать ветки, не коммитить. Ядро берётся оттуда path-зависимостями, никогда не копией:
+  `tools/dms-game` (данные NM из игры), `tools/dms-vphysics` (`IPhysicsNM`, привязка, нативные тела, хуллы, хост и
+  куски FOLLOW без Lua), `tools/dms-ctl` (канал стенда, RCON, сценарии, записи) и форк `vphysics/` (собирается там
+  его `scripts\build-vphysics.ps1`). Неточности ядра и физики чинятся **там**, со сверкой с Playroom, отдельной
+  задачей в том репозитории (сначала показать расхождение), и приходят сюда оттуда. Сборка требует состояния golden
+  не старше его PR #39 (`dms_vphysics::hull`).
+- **Homer здесь нет**: ни тела, ни модели, ни спавна, ни golden-сценариев Homer. Шаблон подгонки — по-прежнему build
+  Homer из данных NM (`dms_game::Game::homer`), это не «тело Homer». `models/dms/homer.mdl` — дело аддона golden.
+- **Delirium не тюним**: те же входные данные NM, drives как есть, без масштабирования и фильтров; единственное
+  исключение — компенсация гравитации (ADR 0007). Слой реакций — код Playroom через крейт `delirium` (ADR 0016), не
+  своя таблица. Пользовательский тюнинг из меню (ADR 0009) — только через публичный интерфейс NM, по умолчанию выключен.
+  Эталона Playroom для подогнанного тела нет (Playroom не грузит подогнанный build): эталон — тот же build в LEAD на
+  крейте (`dmr-check fit`), тело сверяется с build (`dmr-check body`).
 - `E:\GitStuff\MyRepos\delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)` — **только чтение**, ничего там не
   менять, не собирать в его `target/`, не запускать `cargo fix`. Подключается path-зависимостью (ADR 0001).
-- Форк VPhysics-Box3D — папка **`vphysics/`** этого репозитория (git subtree, ADR 0015, [docs/vphysics.md](docs/vphysics.md);
-  `IPhysicsNM`, интерфейс `vphysics/include/vphysics_nm.h`, `VBOX3D_NM_006`). **Можно менять**, если там есть
-  неточности, мешающие NM работать один в один как в Playroom (силы, armature, пивоты/лимиты суставов, порядок
-  шага, единицы и т.п.). Правило: сначала показать расхождение с Playroom/SDK (что делает Delirium, что делает
-  форк), потом чинить в форке; новые/изменённые методы — новой версией интерфейса (`VBOX3D_NM_005`…) с сохранением
-  старых строк, заголовок копировать в модуль. Правка физики и модуля — **одним PR**. Сборка —
-  `.\scripts\build-vphysics.ps1` (= `cmake --preset windows-x64` + `cmake --build --preset windows-x64-release` в
-  `vphysics/`; после `subtree pull`/смены коммита — `-Clean`), установка — `.\scripts\install.ps1 -Fork` (в
-  `GarrysMod\bin\win64\vphysics.dll`, оригинал не трогать — `vphysics.dll.original`). Не связанное с NM в форке не
-  менять. Свежий upstream — `git subtree pull --prefix vphysics https://github.com/Asphaltian/VPhysics-Box3D main`
-  (без `--squash`). Старые `E:\GitStuff\MyRepos\VPhysics-Box3D` и `razedproduction/VPhysics-Box3D` больше не
-  используются.
-- `E:\GitStuff\MyRepos\delirium-physics (gmod addon & api)` — прошлая попытка, только справочник, код не переносить.
-  Её инструмент для переделки костей моделей игры (`delirium-ragdoll`: `--fit-model`, `--reskin`, `--nm-body`,
-  `--template`, `.nmfit.txt`) **игнорировать полностью** — даже как справочник. Когда понадобятся модели, напишем
-  новый инструмент с новым подходом.
-- Только **win64** (`x86_64-pc-windows-msvc`, `gmsv_dms_win64.dll`). Никаких win32/x86/thiscall.
+- `E:\GitStuff\MyRepos\delirium-physics (gmod addon & api)` — прошлая попытка, только справочник, код не переносить;
+  её `delirium-ragdoll` (`--fit-model`, `--reskin`, `--nm-body`, `.nmfit.txt`) игнорировать полностью.
+- **Свои имена, чтобы ставиться рядом с golden**: модуль `gmsv_dmr_win64.dll` (`require("dmr")`, глобал `DMR`),
+  аддон `garrysmod/addons/dmr` (`lua/dmr/`, `autorun/*/dmr_*.lua`), API `dmr.*`, convar'ы и команды `dmr_*`, хуки и
+  net `DMR_*`/`dmr_*`, поля сущностей `DMR_*`, `data/dmr/`, порт канала стенда 27098. Ничего с именами `dms`/`DMS`
+  в Lua и модуле не заводить (исключение — ключ `dms_skeleton` в файлах ригов, формат игроков). Свой предмет
+  Workshop (не 3829811829).
+- Только **win64** (`x86_64-pc-windows-msvc`). Никаких win32/x86/thiscall.
 - **Без AVX2**: у пользователя процессор без AVX2 — никаких `target-cpu=x86-64-v3`, `+avx2`, `+fma`.
-- Пока работаем **только с телом Homer**; модели ValveBiped отложены. Модель Homer импортируется заново тем же
-  кодом, каким Delirium строит Homer (`delirium-data` + `delirium::ragdoll::Rig`), из копии GTA IV пользователя;
-  наработки прошлой попытки (`delirium-ragdoll`, её `homer.mdl`) не использовать (ROADMAP M3).
-- Игровые данные GTA IV и всё, что из них сделано (персонаж, build, модель Homer), в репозиторий и релизы не
-  попадают (ADR 0006). Лицензия GPL-3.0-only.
-- Каждая веха ROADMAP (M1, M2, …) делается **в отдельной новой сессии**.
-- **Работа через PR.** В `main` напрямую не коммитить и не пушить. Каждая веха (или отдельная правка) — своя
-  ветка от свежего `origin/main` (`git fetch` + `git switch -c <ветка> origin/main`), коммиты в неё, затем
-  `git push -u origin <ветка>` и `gh pr create --base main` (repo `razedproduction/Delirium-physics-in-GMod`, бывший `DMS-in-Gmod`). Пуш ветки и
-  открытие PR входят в завершение вехи; мерж PR делает только пользователь. Сессии, работающие параллельно в одной
-  папке, не переключают чужую ветку.
+- Игровые данные GTA IV и всё, что из них сделано (build, записи `fit/out/`), в репозиторий и релизы не попадают
+  (ADR 0006). Лицензия GPL-3.0-only.
+- **Работа через PR.** В `main` напрямую не коммитить и не пушить. Каждая веха или правка — своя ветка от свежего
+  `origin/main` (`git fetch` + `git switch -c <ветка> origin/main`), затем `git push -u origin <ветка>` и
+  `gh pr create --base main` (repo `razedproduction/Delirium-ragdolls-in-GMod`). Мерж PR делает только пользователь.
+  Каждая веха ROADMAP — в отдельной новой сессии. Сессии в одной папке не переключают чужую ветку.
 
 ## Сборка, установка, проверка
 
 ```powershell
-.\scripts\build.ps1            # -> dist\gmsv_dms_win64.dll (release; -DebugBuild для debug)
-.\scripts\install.ps1          # dll -> garrysmod\lua\bin, addon\ -> garrysmod\addons\dms
+.\scripts\build.ps1            # -> dist\gmsv_dmr_win64.dll (release; -DebugBuild для debug)
+.\scripts\install.ps1          # dll -> garrysmod\lua\bin, addon\ -> garrysmod\addons\dmr (-Fork: форк из golden-чекаута)
+cargo build --release -p dmr-ctl -p dmr-check -p dms-rig
 ```
 
-- GMod: `E:\Games\Steam\steamapps\common\GarrysMod` (x86-64 ветка, форк `vphysics.dll` уже в `bin\win64`,
-  оригинал — `vphysics.dll.original`). После сборки устанавливать в игру самому, не спрашивая.
+- GMod: `E:\Games\Steam\steamapps\common\GarrysMod` (x86-64 ветка, форк `vphysics.dll` уже в `bin\win64`, оригинал —
+  `vphysics.dll.original`; там же может стоять golden — `gmsv_dms_win64.dll`, `addons\dms`). После сборки
+  устанавливать в игру самому, не спрашивая.
 - В PowerShell не запускать `build.ps1` с `2>&1`: вывод cargo в stderr превращается в ошибку.
-- Релиз (ADR 0024, 0035): `.\scripts\package.ps1` → `dist\DMS-<версия>-win64.zip` (без Lua: аддон — в Workshop,
-  id 3829811829, его обновляет пользователь; установщик игрока — `scripts\release\install.bat`). Версия — `Cargo.toml`
-  (`workspace.package`) и `DMS_ADDON_VERSION` в `dms_init.lua`, одинаковые; изменилось то, что пишет `dms-homer`, —
-  `dms_game::MODEL_VERSION` + 1. CRT линкуется статически (`.cargo\config.toml`). Публикация — только с разрешения
+- Стенд ([docs/bench.md](docs/bench.md)): **сама игра в окне** — `.\scripts\server.ps1 start|stop|restart|status`
+  (listen-сервер на `127.0.0.1`, окно 1280×720; `-Hidden` — `-textmode`) и `.\target\release\dmr-ctl.exe`: `status`,
+  `exec`, `lua <код>` / `lua -f <файл>`, `nm`, `bench reset|stop|cancel`, `snapshot`, `watch --for 2s` (**всегда с
+  `--for`**), `run fit\scenarios\<имя>.txt --fit <model.mdl> [--lead]`. Сверки — `.\target\release\dmr-check.exe`:
+  `body [<mdl>]` (подогнанное тело против build и SDK `nm_build_fit`), `fit [--model <mdl>] [имена]` (FOLLOW против
+  LEAD того же build); папка GTA IV — `--game` (запоминается в `fit\game_dir.txt`) или `DMR_GAME_DIR`; `server.ps1`
+  берёт её оттуда же или из `golden\game_dir.txt` golden-чекаута. Поведение проверять там самому, пользователю
+  оставлять визуальное. Пока стенд запущен, пользователь не может играть — после проверки `server.ps1 stop`. Стенд
+  golden и этот — одна и та же игра: не запускать оба. В PowerShell 5.1 `"` в аргументах `dmr-ctl` теряются: в Lua —
+  одинарные кавычки или `lua -f`. Канал — только `127.0.0.1`, только при `dmr_dev 1` (через одноразовый
+  `data/dmr/bench.txt`). Выделенный сервер с форком не работает и не используется.
+- Оба модуля могут быть загружены вместе, но форк держит один step-callback на окружение: NM на теле у одного модуля
+  останавливает агентов другого (ROADMAP «Next»).
+- Релиз: `.\scripts\package.ps1` → `dist\DMR-<версия>-win64.zip` (`gmsv_dmr_win64.dll` + форк из golden-чекаута, без
+  Lua: аддон — в своём предмете Workshop; установщик — `scripts\release\install.bat`). Версия — `Cargo.toml`
+  (`workspace.package`) и `DMR_ADDON_VERSION` в `dmr_init.lua`, одинаковые. Публикация — только с разрешения
   пользователя.
-- Свой стенд (M2.5, [docs/bench.md](docs/bench.md), ADR 0012): **сама игра в окне** —
-  `.\scripts\server.ps1 start|stop|restart|status` (`gmod_win64.exe`, listen-сервер на `127.0.0.1`,
-  окно 1280×720 видно, чтобы тест можно было смотреть; `-Hidden` — `-textmode` и скрытое окно) и CLI `.\target\release\dms-ctl.exe` (`cargo build --release -p dms-ctl -p golden`): `status`,
-  `exec <команда>` (RCON, с выводом), `lua <код>` / `lua -f <файл>`, `nm <сообщение> [p=v]`, `bench reset|stop|cancel`,
-  `snapshot`, `watch --for 2s [--fields a,b]` (**всегда с `--for`**), `run golden\scenarios\<имя>.txt` (→
-  `golden/out/source/<имя>.rec`); сверка — `.\target\release\golden.exe behaviour --source [имена]`. Поведение и
-  golden-сверку проверять там самому, пользователю оставлять только визуальное. Пока стенд запущен, пользователь не
-  может играть (одна копия игры) — после проверки `server.ps1 stop`. В PowerShell 5.1 `"` в аргументах `dms-ctl`
-  теряются: в Lua — одинарные кавычки или `lua -f`. Канал `dms-ctl` — только `127.0.0.1`, только при `dms_dev 1`
-  (включает лишь `server.ps1` через одноразовый `data/dms/bench.txt`).
-- Выделенный сервер (`server.ps1 start -Dedicated`, `E:\Games\GModServer`) с форком **не работает**: серверная
-  сборка GMod x64 собрана с новыми интерфейсами vphysics (ADR 0012); там только свой `vphysics.dll`, без `IPhysicsNM`.
-  **Решение пользователя: от выделенного сервера отказались, все тесты — в игре** (стенд `server.ps1 start` без
-  `-Dedicated`). Порт форка на серверный ABI не делать без отдельной просьбы.
-- Вне игры модуль можно проверить и загрузкой настоящего `garrysmod\bin\win64\lua_shared.dll` (`luaL_newstate` →
-  `gmod13_open` через P/Invoke из PowerShell, `SetDllDirectory` на `bin\win64`); так же — `vphysics.dll` и
-  `CreateInterface`. Такие скрипты держать в scratchpad, не в репозитории.
 
 ## Устройство
 
-- `module/` — `gmsv_dms` (Rust, `cdylib`). `lua.rs` — LuaJIT API из уже загруженного `lua_shared.dll` через
-  `GetProcAddress` (без крейтов-обёрток), нативы через `lua::native!` (`extern "C-unwind"`, ошибки → `lua_error`).
-  `ffi/vphysics_nm.rs` — vtable `IPhysicsNM` строго в порядке объявления в заголовке.
-- `addon/lua/` — серверный Lua: `autorun/server/dms_init.lua` (`require("dms")`), `dms/*.lua`.
-- `vphysics/` — форк VPhysics-Box3D (C++, CMake, MIT); сабмодули `vphysics/external/*` (`git submodule update --init`).
-- `scripts/`, `docs/adr/`, `tools/` (появится в M3).
-- `tools/dms-vphysics` — FFI `IPhysicsNM`, привязка и нативное тело без Lua, хост форка вне игры (ADR 0031); общий для
-  модуля и `tools/dms-rig` (редактор ригов на egui, [docs/rig-editor.md](docs/rig-editor.md)).
+- `module/` — `gmsv_dmr` (Rust, `cdylib`): копия модуля golden на момент раскола без Homer (`ragdolls.rs` — подгонка,
+  нативные тела, позы модели). Общий FOLLOW-код меняется в golden и переносится сюда руками, пока ядро там не станет
+  библиотекой (его ADR 0037). `lua.rs` — LuaJIT API через `GetProcAddress`, нативы через `lua::native!`.
+- `addon/lua/` — серверный и клиентский Lua: `autorun/server/dmr_init.lua` (`require("dmr")`), `dmr/*.lua`
+  (`ragdolls.lua`, `deaths.lua`, `live.lua`, `skeletons.lua`, `rig_view.lua`, реакции, окно `cl_menu.lua`, инструмент).
+- `tools/dms-fit` — подгонка build под скелет модели (общая с модулем и редактором); `tools/dms-rig` — редактор ригов
+  (egui, [docs/rig-editor.md](docs/rig-editor.md)); `tools/dmr-ctl` — CLI стенда поверх `dms-ctl` из golden;
+  `tools/dmr-check` — сверки подогнанного тела; `fit/scenarios` — сценарии Playroom для `dmr-check fit`.
 
 Инварианты:
 - Внутри step-callback (`SetStepCallback`, внутри `Simulate`) — **никакого Lua и игровых вызовов**, только методы
   `IPhysicsNM`; обмен с Lua через очереди команд/событий (ADR 0003).
-- Без `IPhysicsNM` модуль загружается, но ничего не делает и объясняет почему (ADR 0005).
+- Без `IPhysicsNM` (`VBOX3D_NM_006`) модуль загружается, но ничего не делает и объясняет почему (ADR 0005).
 - Единицы на границе с NM — SI, Z вверх, 1 unit Source = 0.0254 м.
-- **`sv_gravity` не меняем никогда** (сломает остальную игру). NM считает с 9.8 м/с² (`delirium::ragdoll::GRAVITY`),
-  Source — 15.24 м/с²; разницу снимает сила `m_k · (g_nm − g_src)` на каждую часть через `ApplyBodyDrive`
-  (ADR 0007). Drives NM не масштабировать.
+- **`sv_gravity` не меняем никогда**. NM считает с 9.8 м/с², Source — 15.24 м/с²; разницу снимает сила
+  `m_k · (g_nm − g_src)` на каждую часть (ADR 0007). Drives NM не масштабировать.
 
 ## Стиль
 
 - Код как в `module/src/*.rs`: краткие `///`-комментарии, `// SAFETY:` у каждого `unsafe`, без лишних зависимостей.
-- Документация (README, ROADMAP, `docs/` с ADR, `golden/README.md`, заметки к релизу) — **на английском** (решение
-  пользователя, M8); с пользователем по-прежнему по-русски.
+- Документация (README, ROADMAP, `docs/` с ADR, `fit/README.md`, заметки к релизу) — **на английском**; с
+  пользователем по-русски.
 - Новое архитектурное решение — новый ADR `docs/adr/NNNN-slug.md` + строка в индексе; принятые ADR не
   переписывать, а заменять.
 - Выполненные пункты вехи отмечать `[x]` в ROADMAP.md (в ветке вехи, вместе с её PR).

@@ -1,30 +1,26 @@
-# The bench (ROADMAP M2.5, docs\bench.md): Garry's Mod driven by tools\dms-ctl.
+# The bench (docs\bench.md): Garry's Mod driven by tools\dmr-ctl.
 #
 #   .\scripts\server.ps1 start [-Map gm_flatgrass] [-GtaDir <GTA IV dir>] [-NoInstall] [-Hidden] [-Tickrate 60]
 #   .\scripts\server.ps1 stop | restart | status
 #
-# By default it's the game itself in a 1280x720 window, so the test can be watched (-Hidden: -textmode, the window
-# hidden), a listen server on 127.0.0.1: the only place
-# VPhysics-Box3D runs (the x86-64 dedicated server is built with newer vphysics interfaces than the fork, docs\bench.md).
-# -Dedicated [-Server <dir>] starts the dedicated server instead, with its own vphysics.dll (no IPhysicsNM: the module's
-# channel, the bench agent and the records work, the drives don't); update [-Server <dir>] [-SteamCmd <exe>] installs or
-# updates it (SteamCMD: app 4020, branch x86-64).
+# It's the game itself in a 1280x720 window, so the test can be watched (-Hidden: -textmode, the window hidden), a
+# listen server on 127.0.0.1: the only place VPhysics-Box3D runs (no dedicated server: the x86-64 one is built with
+# newer vphysics interfaces than the fork).
 #
-# start installs dist\ and addon\ (install.ps1), writes garrysmod\data\dms\bench.txt (dms_game_dir, dms_dev 1 and a new
+# start installs dist\ and addon\ (install.ps1), writes garrysmod\data\dmr\bench.txt (dmr_game_dir, dmr_dev 1 and a new
 # token; the addon reads and deletes it) and starts the game, RCON on 127.0.0.1 with a new password, the console
-# logged to garrysmod\console.log. What dms-ctl needs goes to .bench\server.txt (not in git).
-# The game can't run twice: don't start the bench while playing, stop it before playing.
+# logged to garrysmod\console.log. What dmr-ctl needs goes to .bench\server.txt (not in git).
+# The game can't run twice: don't start the bench while playing (or while the golden checkout's bench runs), stop it
+# before playing.
 
 param(
-	[Parameter(Position = 0)][ValidateSet('start', 'stop', 'restart', 'status', 'update')][string]$Action = 'status',
-	[switch]$Dedicated,
+	[Parameter(Position = 0)][ValidateSet('start', 'stop', 'restart', 'status')][string]$Action = 'status',
 	[string]$GarrysMod,
-	[string]$Server,
 	[string]$Map = 'gm_flatgrass',
 	[string]$GtaDir,
 	[int]$Port = 27115,
-	[int]$DevPort = 27099,
-	[string]$SteamCmd,
+	# Not the golden bench's 27099: either can be up without the other noticing.
+	[int]$DevPort = 27098,
 	[int]$Wait = 180,
 	[switch]$NoInstall,
 	[switch]$Hidden,
@@ -36,7 +32,6 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $benchDir = Join-Path $root '.bench'
 $stateFile = Join-Path $benchDir 'server.txt'
-$dirFile = Join-Path $benchDir 'server_dir.txt'
 New-Item -ItemType Directory -Force $benchDir | Out-Null
 
 function Read-State {
@@ -57,19 +52,10 @@ function Get-GameDir {
 	throw "Garry's Mod not found, pass -GarrysMod <path to the GarrysMod folder>"
 }
 
-function Get-ServerDir {
-	if ($Server) {
-		Set-Content $dirFile $Server -Encoding utf8
-		return $Server
-	}
-	if (Test-Path $dirFile) { return (Get-Content $dirFile -Raw).Trim() }
-	throw "where is the dedicated server? pass -Server <dir with srcds_win64.exe> once (it's remembered in .bench\server_dir.txt)"
-}
-
 function Get-Running($s) {
 	if (-not $s.pid) { return $null }
 	$p = Get-Process -Id $s.pid -ErrorAction SilentlyContinue
-	if ($p -and ($p.ProcessName -like 'srcds*' -or $p.ProcessName -like 'gmod*')) { return $p }
+	if ($p -and $p.ProcessName -like 'gmod*') { return $p }
 	return $null
 }
 
@@ -80,10 +66,10 @@ function New-Secret {
 }
 
 function Hide-Window([IntPtr]$h) {
-	if (-not ('DmsBench.Win' -as [type])) {
-		Add-Type -Name Win -Namespace DmsBench -MemberDefinition '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);'
+	if (-not ('DmrBench.Win' -as [type])) {
+		Add-Type -Name Win -Namespace DmrBench -MemberDefinition '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);'
 	}
-	[DmsBench.Win]::ShowWindow($h, 0) | Out-Null
+	[DmrBench.Win]::ShowWindow($h, 0) | Out-Null
 	$true
 }
 
@@ -104,8 +90,8 @@ function Show-Status {
 	}
 	$rcon = if (Test-Port ([int]$s.rcon_port)) { 'up' } else { 'down' }
 	$dev = if (Test-Port ([int]$s.dev_port)) { 'up' } else { 'down' }
-	Write-Host ("bench: running ({0}), pid {1}, {2}; RCON 127.0.0.1:{3} {4}; dms-ctl channel 127.0.0.1:{5} {6}" -f `
-		$s.kind, $p.Id, $s.dir, $s.rcon_port, $rcon, $s.dev_port, $dev)
+	Write-Host ("bench: running, pid {0}, {1}; RCON 127.0.0.1:{2} {3}; dmr-ctl channel 127.0.0.1:{4} {5}" -f `
+		$p.Id, $s.dir, $s.rcon_port, $rcon, $s.dev_port, $dev)
 	Write-Host "log: $($s.log)"
 }
 
@@ -115,30 +101,16 @@ function Stop-Bench {
 	if (-not $p) {
 		Write-Host "bench: not running"
 	} else {
-		$ctl = Join-Path $root 'target\release\dms-ctl.exe'
+		$ctl = Join-Path $root 'target\release\dmr-ctl.exe'
 		if (Test-Path $ctl) { try { & $ctl exec quit 2>$null | Out-Null } catch {} }
 		if (-not $p.WaitForExit(10000)) { Stop-Process -Id $p.Id -Force -Confirm:$false }
 		Write-Host "bench: stopped (pid $($p.Id))"
 	}
 	if ($s.dir) {
-		$settings = Join-Path $s.dir 'garrysmod\data\dms\bench.txt'
+		$settings = Join-Path $s.dir 'garrysmod\data\dmr\bench.txt'
 		if (Test-Path $settings) { Remove-Item $settings -Force -Confirm:$false }
 	}
 	if (Test-Path $stateFile) { Remove-Item $stateFile -Force -Confirm:$false }
-}
-
-function Update-Server {
-	$dir = Get-ServerDir
-	if (-not $SteamCmd) { $SteamCmd = Join-Path (Split-Path -Parent $dir) 'steamcmd\steamcmd.exe' }
-	if (-not (Test-Path $SteamCmd)) { throw "$SteamCmd not found, pass -SteamCmd <steamcmd.exe>" }
-	# SteamCMD often fails its first run after updating itself (7) or with "state is 0x2" (8): try again.
-	for ($i = 1; $i -le 3; $i++) {
-		& $SteamCmd +force_install_dir $dir +login anonymous +app_update 4020 -beta x86-64 +quit
-		if ($LASTEXITCODE -eq 0) { break }
-		Write-Host "steamcmd exited with $LASTEXITCODE, again ($i/3)"
-	}
-	if ($LASTEXITCODE -ne 0) { throw "steamcmd failed ($LASTEXITCODE)" }
-	Write-Host "updated $dir"
 }
 
 function Start-Bench {
@@ -147,53 +119,43 @@ function Start-Bench {
 		Write-Host "bench: already running (pid $($s.pid)); restart to start it anew"
 		return
 	}
-	if ($Dedicated) {
-		$dir = Get-ServerDir
-		$exe = Join-Path $dir 'srcds_win64.exe'
-		if (-not (Test-Path $exe)) { throw "$exe not found (scripts\server.ps1 update -Server <dir>)" }
-		if (-not $NoInstall) { & (Join-Path $PSScriptRoot 'install.ps1') -Server $dir }
-	} else {
-		$dir = Get-GameDir
-		$exe = Join-Path $dir 'gmod_win64.exe'
-		if (-not (Test-Path $exe)) { throw "$exe not found (the x86-64 branch of Garry's Mod)" }
-		if (Get-Process gmod*, hl2 -ErrorAction SilentlyContinue) { throw "Garry's Mod is running: close it first (it can't run twice)" }
-		if (-not $NoInstall) { & (Join-Path $PSScriptRoot 'install.ps1') -GarrysMod $dir }
-	}
+	$dir = Get-GameDir
+	$exe = Join-Path $dir 'gmod_win64.exe'
+	if (-not (Test-Path $exe)) { throw "$exe not found (the x86-64 branch of Garry's Mod)" }
+	if (Get-Process gmod*, hl2 -ErrorAction SilentlyContinue) { throw "Garry's Mod is running: close it first (it can't run twice)" }
+	if (-not $NoInstall) { & (Join-Path $PSScriptRoot 'install.ps1') -GarrysMod $dir }
 
-	if (-not $GtaDir) { $GtaDir = $env:DMS_GAME_DIR }
-	$gameFile = Join-Path $root 'golden\game_dir.txt'
-	if (-not $GtaDir -and (Test-Path $gameFile)) { $GtaDir = (Get-Content $gameFile -Raw).Trim() }
-	if (-not $GtaDir) { Write-Host "no GTA IV folder (-GtaDir, DMS_GAME_DIR or golden\game_dir.txt): NM's data won't load" }
+	# The GTA IV folder: -GtaDir, DMR_GAME_DIR, fit\game_dir.txt (dmr-check --game), else the golden checkout's.
+	if (-not $GtaDir) { $GtaDir = $env:DMR_GAME_DIR }
+	foreach ($f in @((Join-Path $root 'fit\game_dir.txt'), (Join-Path (Split-Path -Parent $root) 'DMS in Gmod\golden\game_dir.txt'))) {
+		if (-not $GtaDir -and (Test-Path $f)) { $GtaDir = (Get-Content $f -Raw).Trim() }
+	}
+	if (-not $GtaDir) { Write-Host "no GTA IV folder (-GtaDir, DMR_GAME_DIR or fit\game_dir.txt): NM's data won't load" }
 
 	$password = New-Secret
 	$token = New-Secret
-	$data = Join-Path $dir 'garrysmod\data\dms'
+	$data = Join-Path $dir 'garrysmod\data\dmr'
 	New-Item -ItemType Directory -Force $data | Out-Null
 	[System.IO.File]::WriteAllLines((Join-Path $data 'bench.txt'), [string[]]@(
-		"dms_game_dir `"$GtaDir`""
-		"dms_dev_port $DevPort"
-		"dms_dev_token $token"
-		"dms_dev 1"
+		"dmr_game_dir `"$GtaDir`""
+		"dmr_dev_port $DevPort"
+		"dmr_dev_token $token"
+		"dmr_dev 1"
 	))
 	$log = Join-Path $dir 'garrysmod\console.log'
 	if (Test-Path $log) { Remove-Item $log -Force -Confirm:$false }
 
-	$common = @('-nocrashdialog', '-condebug', '-ip', '127.0.0.1', '-port', $Port, '+sv_lan', '1', '+sv_cheats', '1',
-		'+rcon_password', $password)
-	if ($Tickrate -gt 0) { $common += @('-tickrate', $Tickrate) }
-	if ($Dedicated) {
-		$launch = @('-console', '-game', 'garrysmod') + $common + @('+maxplayers', '1', '+sv_hibernate_think', '1', '+map', $Map)
-	} else {
-		# A listen server (2 slots: maxplayers 1 would be single player, no RCON); -usercon opens RCON there.
-		# Shown: a normal window, so the test can be watched; -Hidden: -textmode, the window hidden below.
-		$view = if ($Hidden) { @('-textmode', '-w', '640', '-h', '480') } else { @('-w', '1280', '-h', '720') }
-		$launch = $view + @('-nosound', '-novid', '-windowed', '-usercon') +
-			$common + @('+maxplayers', '2', '+sv_hibernate_think', '1', '+map', $Map)
-	}
-	$style = if ($Dedicated -or $Hidden) { 'Hidden' } else { 'Normal' }
+	# A listen server (2 slots: maxplayers 1 would be single player, no RCON); -usercon opens RCON there.
+	# Shown: a normal window, so the test can be watched; -Hidden: -textmode, the window hidden below.
+	$view = if ($Hidden) { @('-textmode', '-w', '640', '-h', '480') } else { @('-w', '1280', '-h', '720') }
+	$launch = $view + @('-nosound', '-novid', '-windowed', '-usercon', '-nocrashdialog', '-condebug', '-ip', '127.0.0.1',
+		'-port', $Port, '+sv_lan', '1', '+sv_cheats', '1', '+rcon_password', $password)
+	if ($Tickrate -gt 0) { $launch += @('-tickrate', $Tickrate) }
+	$launch += @('+maxplayers', '2', '+sv_hibernate_think', '1', '+map', $Map)
+	$style = if ($Hidden) { 'Hidden' } else { 'Normal' }
 	$p = Start-Process -FilePath $exe -ArgumentList $launch -WorkingDirectory $dir -WindowStyle $style -PassThru
 	[System.IO.File]::WriteAllLines($stateFile, [string[]]@(
-		"kind=$(if ($Dedicated) { 'dedicated' } else { 'game' })"
+		"kind=game"
 		"dir=$dir"
 		"pid=$($p.Id)"
 		"rcon_port=$Port"
@@ -203,10 +165,10 @@ function Start-Bench {
 		"log=$log"
 		"map=$Map"
 	))
-	Write-Host "bench: starting $(Split-Path -Leaf $exe), pid $($p.Id), $Map, 127.0.0.1:$Port; waiting for the dms-ctl channel..."
+	Write-Host "bench: starting $(Split-Path -Leaf $exe), pid $($p.Id), $Map, 127.0.0.1:$Port; waiting for the dmr-ctl channel..."
 	$deadline = (Get-Date).AddSeconds($Wait)
 	# Only -Hidden hides the game's window (it opens one even with -textmode and a hidden start).
-	$hidden = $Dedicated -or -not $Hidden
+	$hidden = -not $Hidden
 	while ((Get-Date) -lt $deadline) {
 		if ($p.HasExited) { throw "the bench exited ($($p.ExitCode)): see $log" }
 		if (-not $hidden) {
@@ -219,7 +181,7 @@ function Start-Bench {
 		}
 		Start-Sleep -Milliseconds 500
 	}
-	Write-Host "the dms-ctl channel didn't come up in $Wait s (see $log); RCON: $(if (Test-Port $Port) { 'up' } else { 'down' })"
+	Write-Host "the dmr-ctl channel didn't come up in $Wait s (see $log); RCON: $(if (Test-Port $Port) { 'up' } else { 'down' })"
 }
 
 switch ($Action) {
@@ -227,5 +189,4 @@ switch ($Action) {
 	'stop' { Stop-Bench }
 	'restart' { Stop-Bench; Start-Bench }
 	'status' { Show-Status }
-	'update' { Update-Server }
 }

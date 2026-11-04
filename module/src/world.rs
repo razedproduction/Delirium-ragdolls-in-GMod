@@ -1,11 +1,11 @@
 //! NM's world from the map (ROADMAP M5): the static geometry of the map's `.bsp` as a `delirium::collision::Collision`,
 //! as the Playroom gives its agents its room's (`world.add`, docs/adr/0008).
 //!
-//! Lua reads the map's file (`file.Read`, the game's file system) and hands its bytes over (`DMS.MapLoad`). The world
+//! Lua reads the map's file (`file.Read`, the game's file system) and hands its bytes over (`DMR.MapLoad`). The world
 //! is the world model's faces (no sky, water, triggers, tool faces) and its displacements, in metres, each face moved
 //! out along its normal by the fork's shell (`SHAPE_INFLATION`, 6.35 mm): Box3D inflates the map's hulls by that,
 //! so its floor is that much over the BSP's plane, and NM has to stand where Box3D's bodies do. Lua then names each
-//! material's surface (`$surfaceprop`, `DMS.MapSurfaces`), which picks the surface row NM's friction comes from
+//! material's surface (`$surfaceprop`, `DMR.MapSurfaces`), which picks the surface row NM's friction comes from
 //! (materials.dat, as the Playroom's CONCRETE). Without a map — an unreadable `.bsp` — agents get the Playroom's floor
 //! at the height traced under them (`data::floor_collision`).
 
@@ -176,7 +176,7 @@ fn clip(poly: &[Vec3], axis: usize, at: f32, keep_below: bool) -> Vec<Vec3> {
 
 struct Map {
     mesh: Arc<MapMesh>,
-    /// The surface row of each material (`DMS.MapSurfaces`), CONCRETE's until then.
+    /// The surface row of each material (`DMR.MapSurfaces`), CONCRETE's until then.
     rows: Vec<u8>,
     /// NM's worlds made of it, by the origin of NM's frame (mm) and their crop's centre (m).
     worlds: Vec<([i32; 5], Arc<Collision>)>,
@@ -532,7 +532,7 @@ pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
 ];
 
 native!(surface_materials => surface_materials_impl);
-/// `DMS.SurfaceMaterials({surfaceprop...})`: every Source surface property by index (`[i + 1]` index `i`'s name):
+/// `DMR.SurfaceMaterials({surfaceprop...})`: every Source surface property by index (`[i + 1]` index `i`'s name):
 /// Box3D's contacts of Homer's parts with it take NM's friction and elasticity of the materials.dat row it stands for
 /// (`SetSurfaceMaterial`, the same rows as NM's world). The number set.
 unsafe fn surface_materials_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -576,9 +576,9 @@ unsafe fn push_info(api: &Api, l: *mut LuaState, m: &MapMesh) {
 }
 
 native!(map_load => map_load_impl);
-/// `DMS.MapLoad(name, bytes)`: the map's world for NM from its `.bsp` (read once a session per name; `bytes` may be
+/// `DMR.MapLoad(name, bytes)`: the map's world for NM from its `.bsp` (read once a session per name; `bytes` may be
 /// nil for one read before). `{name, faces, displacements, triangles, materials = {name...}}`: name the materials'
-/// surfaces next (`DMS.MapSurfaces`). Errors leave agents on a traced floor.
+/// surfaces next (`DMR.MapSurfaces`). Errors leave agents on a traced floor.
 unsafe fn map_load_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let name = unsafe { api.check_string(l, 1)? };
     let mut maps = MAPS.lock().unwrap_or_else(|e| e.into_inner());
@@ -603,7 +603,7 @@ unsafe fn map_load_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(map_surfaces => map_surfaces_impl);
-/// `DMS.MapSurfaces({surfaceprop...})`: the `$surfaceprop` of each of `DMS.MapLoad`'s materials, in its order (nil or
+/// `DMR.MapSurfaces({surfaceprop...})`: the `$surfaceprop` of each of `DMR.MapLoad`'s materials, in its order (nil or
 /// "" for none: CONCRETE). `{surface row name...}` as they came out. Needs NM's data (materials.dat).
 unsafe fn map_surfaces_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     if unsafe { (api.type_)(l, 1) } != TTABLE {
@@ -611,7 +611,7 @@ unsafe fn map_surfaces_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
     }
     let d = data::get().ok_or("NM's data isn't loaded")?;
     let mut slot = MAP.lock().unwrap_or_else(|e| e.into_inner());
-    let map = slot.as_mut().ok_or("no map loaded (DMS.MapLoad)")?;
+    let map = slot.as_mut().ok_or("no map loaded (DMR.MapLoad)")?;
     let rows: Vec<u8> = (0..map.mesh.materials.len())
         .map(|i| unsafe {
             (api.rawgeti)(l, 1, i as c_int + 1);
@@ -639,14 +639,14 @@ pub fn unload() {
 }
 
 native!(map_unload => map_unload_impl);
-/// `DMS.MapUnload()`: no map world (new agents get a traced floor).
+/// `DMR.MapUnload()`: no map world (new agents get a traced floor).
 unsafe fn map_unload_impl(_api: &Api, _l: *mut LuaState) -> Result<c_int, String> {
     *MAP.lock().unwrap_or_else(|e| e.into_inner()) = None;
     Ok(0)
 }
 
 native!(map_water => map_water_impl);
-/// `DMS.MapWater(pos[, above])`: the surface's height (m, the game's frame) of the map's water `pos` is in or less
+/// `DMR.MapWater(pos[, above])`: the surface's height (m, the game's frame) of the map's water `pos` is in or less
 /// than `above` m over (default 0), as the room layer finds it; nil if none. For checking it against the game's
 /// `util.PointContents`.
 unsafe fn map_water_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -660,12 +660,12 @@ unsafe fn map_water_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(map_ground => map_ground_impl);
-/// `DMS.MapGround(pos[, len])`: where NM's map world is under `pos` (m, the game's frame), looking down `len` m
+/// `DMR.MapGround(pos[, len])`: where NM's map world is under `pos` (m, the game's frame), looking down `len` m
 /// (default 10): `z, surface row name`, or nil. For checking NM's world against the game's traces.
 unsafe fn map_ground_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let p = Vec3::from_array(unsafe { api.check_vec3(l, 1)? });
     let len = unsafe { api.opt_number(l, 2, 10.0)? } as f32;
-    let w = collision(Vec3::ZERO, crop_centre(p, Vec3::ZERO)).ok_or("no map loaded (DMS.MapLoad)")?;
+    let w = collision(Vec3::ZERO, crop_centre(p, Vec3::ZERO)).ok_or("no map loaded (DMR.MapLoad)")?;
     match w.ground_material(p, len) {
         Some((z, m)) => unsafe {
             (api.pushnumber)(l, f64::from(z));

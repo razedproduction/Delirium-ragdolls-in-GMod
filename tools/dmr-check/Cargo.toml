@@ -1,0 +1,14 @@
+[package]
+name = "dmr-check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dmr-ctl = { path = "../dmr-ctl" }
+# The core, read only from the golden checkout next to this one (docs/adr/0036).
+dms-game = { path = "../../../DMS in Gmod/tools/dms-game" }
+# Read only (docs/adr/0001): built into this workspace's target/, nothing is written there.
+delirium = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium" }
+delirium-sdk = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium-sdk" }

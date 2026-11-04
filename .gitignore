@@ -1,9 +1,7 @@
 /target/
 /dist/
-/target-playroom/
-/golden/out/
-/golden/game_dir.txt
+# dmr-check's records and the player's GTA IV folder (made from the game: never committed, docs/adr/0006).
+/fit/out/
+/fit/game_dir.txt
 # The bench server's addresses and secrets (scripts\server.ps1).
 /.bench/
-# The fork's CMake build tree (scripts\build-vphysics.ps1); vphysics\.gitignore has it too.
-/vphysics/build/

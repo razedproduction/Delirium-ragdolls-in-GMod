@@ -127,7 +127,7 @@ pub unsafe fn run(l: *mut LuaState, body: Native) -> c_int {
 unsafe fn guarded(api: &Api, l: *mut LuaState, body: Native) -> Result<c_int, String> {
     // SAFETY: the caller's promise.
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe { body(api, l) }))
-        .unwrap_or_else(|p| Err(format!("DMS internal error (panic: {})", crate::step::panic_text(&*p))))
+        .unwrap_or_else(|p| Err(format!("DMR internal error (panic: {})", crate::step::panic_text(&*p))))
 }
 
 /// `lua_error` with `message`: nothing that needs dropping is alive while it unwinds.
@@ -391,7 +391,7 @@ mod sys {
     use std::ffi::c_void;
 
     pub fn open() -> Result<*mut c_void, String> {
-        Err("gmsv_dms runs on Windows only for now".into())
+        Err("gmsv_dmr runs on Windows only for now".into())
     }
 
     pub fn symbol(_module: *mut c_void, _name: &str) -> *mut c_void {

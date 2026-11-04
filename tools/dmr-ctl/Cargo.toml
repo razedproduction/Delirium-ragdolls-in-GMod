@@ -1,0 +1,17 @@
+[package]
+name = "dmr-ctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "dmr-ctl"
+path = "src/main.rs"
+
+[dependencies]
+# The bench's channel, RCON, scenarios and records: the golden checkout's, read only (docs/adr/0036).
+dms-ctl = { path = "../../../DMS in Gmod/tools/dms-ctl" }

@@ -177,7 +177,7 @@ impl Side {
     }
 }
 
-/// Something the game did to Homer, for his next NM step (Lua's damage hooks, `dms_react`). Points and directions
+/// Something the game did to Homer, for his next NM step (Lua's damage hooks, `dmr_react`). Points and directions
 /// in the game's frame (m): the follower moves them into NM's.
 #[derive(Clone, Debug)]
 pub enum React {
@@ -739,7 +739,7 @@ impl Follower {
     fn car_react(&mut self, k: i32, sum: Vec3, at: Vec3, player: bool) {
         use delirium::bump::{self, Kind, Thing};
         let a = &self.agent;
-        let other = Thing { id: k, kind: Kind::Vehicle { player_driver: player } };
+        let other = Thing { id: k, kind: Kind::Vehicle { player_driver: player, train: None } };
         let imp = bump::Impact { impulse: sum.length(), dt: 1.0 / 60.0, component: a.doll.nearest(&self.def.build, at) as i32, other: Some(other) };
         let health = self.room.health;
         let ped = bump::Ped {
@@ -1063,7 +1063,7 @@ impl Follower {
         self.room.failed |= self.agent.feedback.iter().any(|f| f.slot == 8 && f.name == "balance");
     }
 
-    /// Off the clip: the bodies go back to NM (Lua unfreezes them, then `DMS.FollowRiseDone`).
+    /// Off the clip: the bodies go back to NM (Lua unfreezes them, then `DMR.FollowRiseDone`).
     fn cancel_rise(&mut self) {
         if self.room.rise.take().is_some() {
             self.unfreeze = true;
@@ -1230,12 +1230,12 @@ fn lines(b: &str, s: &Side) -> Vec<String> {
 fn hero_task(tp: &delirium_data::taskparams::TaskParams, task: &str, set: &str, head: Vec3, me: Vec3, fwd: Vec3, rand: &mut Rand) -> (Vec<String>, u32) {
     use delirium::meleetask::MeleeTask;
     let hit = Hit { attacker_head: Some(head), attacker_neck: Some(head), pos: me, fwd, ..Default::default() };
-    let mut t = if task == "flinch" { MeleeTask::Flinch { set: set.into(), started: false, lean_until: 0 } } else { MeleeTask::Balance { set: set.into(), started: false } };
+    let mut t = if task == "flinch" { MeleeTask::Flinch { set: set.into(), started: false, lean_until: 0 } } else { MeleeTask::Balance { set: set.into(), started: false, clock: 0 } };
     let lines = t.update(rand, tp, &hit, 0, false).iter().map(shottask::text).collect();
     (lines, if let MeleeTask::Flinch { lean_until, .. } = t { lean_until } else { 0 })
 }
 
-/// The Playroom's buttons a reaction can press (`dms_react button <name>`, the menu).
+/// The Playroom's buttons a reaction can press (`dmr_react button <name>`, the menu).
 pub const BUTTONS: [&str; 22] = [
     "balance", "drunk", "windmill", "pedal", "writhe", "rollup", "catchfall", "highfall", "stairs", "flinch", "brace", "look",
     "point", "lean", "relax", "stayup", "foetal", "grab", "overwall", "STOP all", "shot", "shot back",

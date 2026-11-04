@@ -1,4 +1,4 @@
-//! Natives on the `DMS` table for Delirium itself (ROADMAP M2): loading NM's data from the game, the self-test
+//! Natives on the `DMR` table for Delirium itself (ROADMAP M2): loading NM's data from the game, the self-test
 //! and reference lists (parts, messages and params, the build's parts, its joints).
 //!
 //! Part indices are NM's (0 Buttocks .. 20 Hand_Right) and Lua lists hold part `i` at `[i + 1]`. Vectors are SI.
@@ -23,7 +23,7 @@ pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
 ];
 
 fn loaded() -> Result<std::sync::Arc<data::Data>, String> {
-    data::get().ok_or_else(|| format!("NM's data isn't loaded (DMS.LoadData): {}", data::how_to()))
+    data::get().ok_or_else(|| format!("NM's data isn't loaded (DMR.LoadData): {}", data::how_to()))
 }
 
 /// Pushes the loaded data's summary.
@@ -40,8 +40,8 @@ unsafe fn push_info(api: &Api, l: *mut LuaState, d: &data::Data) {
 }
 
 native!(load_data => load_data_impl);
-/// `DMS.LoadData(gameDir)`: loads fred.xrt, taskparams.txt, the surfaces and Homer's build from the game, once.
-/// The data's summary (`DMS.DataInfo()`); a Lua error saying what's missing and what to set if it can't.
+/// `DMR.LoadData(gameDir)`: loads fred.xrt, taskparams.txt, the surfaces and Homer's build from the game, once.
+/// The data's summary (`DMR.DataInfo()`); a Lua error saying what's missing and what to set if it can't.
 unsafe fn load_data_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let dir = unsafe { api.check_string(l, 1)? };
     let d = data::load(&dir)?;
@@ -50,7 +50,7 @@ unsafe fn load_data_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(data_info => data_info_impl);
-/// `DMS.DataInfo()`: `{dir, platform, parts, taskparams, surfaces, floorMaterial}`, nil before `LoadData`.
+/// `DMR.DataInfo()`: `{dir, platform, parts, taskparams, surfaces, floorMaterial}`, nil before `LoadData`.
 unsafe fn data_info_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     match data::get() {
         Some(d) => unsafe { push_info(api, l, &d) },
@@ -60,7 +60,7 @@ unsafe fn data_info_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(self_test => self_test_impl);
-/// `DMS.SelfTest([seconds = 2])`: Homer in LEAD on a flat floor under `bodyBalance`. `{passed, verdict, steps,
+/// `DMR.SelfTest([seconds = 2])`: Homer in LEAD on a flat floor under `bodyBalance`. `{passed, verdict, steps,
 /// pelvisStart, pelvisMin, pelvisEnd, headStart, headEnd, balancing, fallen}`.
 unsafe fn self_test_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let seconds = unsafe { api.opt_number(l, 1, 2.0)? } as f32;
@@ -87,7 +87,7 @@ unsafe fn self_test_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(part_names => part_names_impl);
-/// `DMS.PartNames()`: NM's 21 part names in part order.
+/// `DMR.PartNames()`: NM's 21 part names in part order.
 unsafe fn part_names_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let names = (0..nm::PARTS).map(nm::part_name).collect::<Result<Vec<_>, _>>()?;
     unsafe {
@@ -101,7 +101,7 @@ unsafe fn part_names_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> 
 }
 
 native!(messages => messages_impl);
-/// `DMS.Messages()`: every NM message's name.
+/// `DMR.Messages()`: every NM message's name.
 unsafe fn messages_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let names = (0..nm::message_count()).map(nm::message_name).collect::<Result<Vec<_>, _>>()?;
     unsafe {
@@ -115,7 +115,7 @@ unsafe fn messages_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(message_params => message_params_impl);
-/// `DMS.MessageParams(message)`: its params, `{name, kind, used, doc, default}` each (`default` a number, a
+/// `DMR.MessageParams(message)`: its params, `{name, kind, used, doc, default}` each (`default` a number, a
 /// `{x, y, z}` or nil).
 unsafe fn message_params_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let name = unsafe { api.check_string(l, 1)? };
@@ -140,14 +140,14 @@ unsafe fn message_params_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(build_parts => build_parts_impl);
-/// `DMS.BuildParts()`: Homer's build, part by part (`nm_build_part_info`, `nm_build_part_frame`): `{index, name,
-/// mass, radius, half, parent, pos, rot}` (`parent` -1 for the root; the frame in the build's standing pose).
+/// `DMR.BuildParts()`: Homer's build, part by part, as NM's physics has it (`dms_game::body`, the crate's build with
+/// its links): `{index, name, mass, radius, half, parent, pos, rot}` (`parent` -1 for the root; the frame in the
+/// build's standing pose). Not the C API's build: since SDK v0.5 one read from a dump has no links and another pose.
 unsafe fn build_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let d = loaded()?;
-    let n = d.build.part_count();
+    let n = d.body.parts.len();
     unsafe { (api.createtable)(l, n as c_int, 0) };
-    for i in 0..n {
-        let p = d.build.part(i)?;
+    for (i, p) in d.body.parts.iter().enumerate() {
         let name = nm::part_name(i)?;
         unsafe {
             (api.createtable)(l, 0, 8);
@@ -157,8 +157,8 @@ unsafe fn build_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
             api.set_number(l, c"radius", f64::from(p.radius));
             api.set_number(l, c"half", f64::from(p.half));
             api.set_number(l, c"parent", p.parent.map_or(-1.0, |j| j as f64));
-            api.set_vector(l, c"pos", &p.pos);
-            api.set_vector(l, c"rot", &p.rot);
+            api.set_vector(l, c"pos", &p.pos.to_array());
+            api.set_vector(l, c"rot", &p.rot.to_array());
             api.append(l, i + 1);
         }
     }
@@ -166,7 +166,7 @@ unsafe fn build_parts_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(build_joints => build_joints_impl);
-/// `DMS.BuildJoints()`: Homer's 20 joints (`nm_agent_get_joint` of an agent in the build's pose at the origin):
+/// `DMR.BuildJoints()`: Homer's 20 joints (`nm_agent_get_joint` of an agent in the build's pose at the origin):
 /// `{part, parent, kind = "ball" | "hinge", pivot, frame, limits, armature}`.
 unsafe fn build_joints_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let d = loaded()?;
@@ -192,7 +192,7 @@ unsafe fn build_joints_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(build_dump => build_dump_impl);
-/// `DMS.BuildDump()`: the build as the Playroom's `NM_DUMP` writes it (for `tools/golden`).
+/// `DMR.BuildDump()`: the build as the Playroom's `NM_DUMP` writes it (for `tools/golden`).
 unsafe fn build_dump_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let d = loaded()?;
     unsafe { api.push_str(l, &d.dump) };

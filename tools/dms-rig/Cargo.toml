@@ -11,9 +11,8 @@ delirium = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE
 delirium-data = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium-data" }
 delirium-sdk = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium-sdk" }
 dms-fit = { path = "../dms-fit" }
-dms-game = { path = "../dms-game" }
-dms-homer = { path = "../dms-homer" }
-dms-vphysics = { path = "../dms-vphysics" }
+dms-game = { path = "../../../DMS in Gmod/tools/dms-game" }
+dms-vphysics = { path = "../../../DMS in Gmod/tools/dms-vphysics" }
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # The --screenshot PNG.

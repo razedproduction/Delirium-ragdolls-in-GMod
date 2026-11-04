@@ -38,7 +38,10 @@ use dms_vphysics::nm::{self, IPhysicsConstraint, IPhysicsEnvironment, IPhysicsOb
 pub const TIMESTEP: f32 = 0.015;
 /// Source's `sv_gravity` (units/s^2), and NM's (m/s^2) that the module makes the body feel under NM (docs/adr/0007).
 pub const SOURCE_GRAVITY: f32 = 600.0;
-pub const NM_GRAVITY: f32 = delirium::ragdoll::GRAVITY;
+/// (A function since SDK v0.2.6: it's one of the numbers read from the game, `delirium_data::kv`.)
+pub fn nm_gravity() -> f32 {
+    delirium::ragdoll::GRAVITY()
+}
 /// NM steps one physics step may run at most, the rest of the time dropped (the module's `MAX_STEPS`).
 const MAX_STEPS: u32 = 4;
 /// The agent's lines kept for the panel.
@@ -484,7 +487,7 @@ impl Sim {
             }
             d.agent.is_some()
         };
-        let g = if nm && !on { NM_GRAVITY / M } else { SOURCE_GRAVITY };
+        let g = if nm && !on { nm_gravity() / M } else { SOURCE_GRAVITY };
         // SAFETY: our live environment, outside its step.
         unsafe { nm::env::set_gravity(self.env.env, [0.0, 0.0, -g]) };
     }

@@ -1,7 +1,7 @@
 //! The reactions' natives (ROADMAP M6): Lua turns the game's damage into the Playroom room's reactions
-//! (`DMS.FollowReact`), holds Homer on his get-up clip (`DMS.FollowPose`, `DMS.FollowRiseDone`), sets the Playroom's
-//! switches (`DMS.SetReactions`) and the player's tuning (`DMS.SetTuning`, docs/adr/0009), and reads what the face
-//! and the debug overlay draw (`DMS.FollowRoom`, `DMS.FollowOverlay`).
+//! (`DMR.FollowReact`), holds Homer on his get-up clip (`DMR.FollowPose`, `DMR.FollowRiseDone`), sets the Playroom's
+//! switches (`DMR.SetReactions`) and the player's tuning (`DMR.SetTuning`, docs/adr/0009), and reads what the face
+//! and the debug overlay draw (`DMR.FollowRoom`, `DMR.FollowOverlay`).
 
 use std::ffi::{CStr, c_int};
 
@@ -28,10 +28,10 @@ pub const NATIVES: &[(&CStr, crate::lua::CFunction)] = &[
 ];
 
 native!(task_params => task_params_impl);
-/// `DMS.TaskParams()`: the game's taskparams.txt as NM's tasks read it, `{[task] = {[set] = {[param] = value}}}` (the
+/// `DMR.TaskParams()`: the game's taskparams.txt as NM's tasks read it, `{[task] = {[set] = {[param] = value}}}` (the
 /// first value of each; empty without the file: NM's defaults), for the tuning menu.
 unsafe fn task_params_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
-    let d = data::get().ok_or("NM's data isn't loaded (DMS.LoadData)")?;
+    let d = data::get().ok_or("NM's data isn't loaded (DMR.LoadData)")?;
     let cs = |s: &str| std::ffi::CString::new(s).unwrap_or_default();
     unsafe {
         (api.createtable)(l, 0, d.tp.0.len() as c_int);
@@ -64,7 +64,7 @@ fn vec3(s: &str) -> Result<Vec3, String> {
     }
 }
 
-/// `<kind> [key=value ...]` as a reaction (points in the game's frame, m; `DMS.FollowReact`).
+/// `<kind> [key=value ...]` as a reaction (points in the game's frame, m; `DMR.FollowReact`).
 pub fn parse(line: &str) -> Result<React, String> {
     let mut w = line.split_whitespace();
     let kind = w.next().ok_or("an empty reaction")?;
@@ -110,7 +110,7 @@ pub fn parse(line: &str) -> Result<React, String> {
 }
 
 native!(follow_react => follow_react_impl);
-/// `DMS.FollowReact(id, line)`: the Playroom room's reaction to something the game did, for the agent's next NM step.
+/// `DMR.FollowReact(id, line)`: the Playroom room's reaction to something the game did, for the agent's next NM step.
 /// `line` is `<kind> [key=value ...]`, points `x,y,z` in the game's frame (m):
 /// `shot [part=k] [at= dir=] [weapon=pistol|deagle|smg|ak47|sniper|shotgun|...] [fatal=1] [more=k,k]`,
 /// `prop at= impulse=`, `blast at=`, `burn`,
@@ -139,7 +139,7 @@ fn angles(q: Quat) -> [f32; 3] {
 }
 
 native!(follow_pose => follow_pose_impl);
-/// `DMS.FollowPose(id)`: while Homer gets up by animation, the clip's pose to hold his bodies on: a flat table, 7
+/// `DMR.FollowPose(id)`: while Homer gets up by animation, the clip's pose to hold his bodies on: a flat table, 7
 /// numbers a part (its centre in units, its angles in degrees, then nothing: 6 used), nil otherwise.
 unsafe fn follow_pose_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
@@ -165,7 +165,7 @@ unsafe fn follow_pose_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_rise_done => follow_rise_done_impl);
-/// `DMS.FollowRiseDone(id)`: Lua let the bodies go (after the `unfreeze` event): NM takes them on its next step.
+/// `DMR.FollowRiseDone(id)`: Lua let the bodies go (after the `unfreeze` event): NM takes them on its next step.
 unsafe fn follow_rise_done_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
     unsafe { (api.pushboolean)(l, step::with(id, |f| f.rise_done()).is_some().into()) };
@@ -173,7 +173,7 @@ unsafe fn follow_rise_done_impl(api: &Api, l: *mut LuaState) -> Result<c_int, St
 }
 
 native!(follow_rise_cancel => follow_rise_cancel_impl);
-/// `DMS.FollowRiseCancel(id)`: the get-up clip given up (Lua let the bodies go before its end, docs/adr/0021): a new
+/// `DMR.FollowRiseCancel(id)`: the get-up clip given up (Lua let the bodies go before its end, docs/adr/0021): a new
 /// agent takes them as they are, balancing. False if he wasn't on a clip (or no such agent).
 unsafe fn follow_rise_cancel_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
@@ -182,7 +182,7 @@ unsafe fn follow_rise_cancel_impl(api: &Api, l: *mut LuaState) -> Result<c_int, 
 }
 
 native!(follow_room => follow_room_impl);
-/// `DMS.FollowRoom(id)`: the room's state of the agent, for the face and the HUD: `{health, dead, rising, shot, blast
+/// `DMR.FollowRoom(id)`: the room's state of the agent, for the face and the HUD: `{health, dead, rising, shot, blast
 /// (the ShotTask, the explosion task running), frozen, burning, shock, getup, ring_part, ring_age, ring_on (the hit on the part, from its centre in its frame, m),
 /// face_centre, face_fwd, face_up (the Playroom's face on the head: in its part's frame, the centre from the part's
 /// centre, m), face_radius (m)}`, nil for no such agent.
@@ -219,10 +219,10 @@ unsafe fn follow_room_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_overlay => follow_overlay_impl);
-/// Numbers a part in `DMS.FollowOverlay`.
+/// Numbers a part in `DMR.FollowOverlay`.
 pub const OVERLAY_PART: usize = 25;
 
-/// `DMS.FollowOverlay(id)`: what the debug overlay draws (NM's view after its last step, as the Playroom's `draw`
+/// `DMR.FollowOverlay(id)`: what the debug overlay draws (NM's view after its last step, as the Playroom's `draw`
 /// and `skeleton` have it), a flat table, 25 numbers a part (units unless said): its capsule's ends (3 + 3) and
 /// radius, its box's half sizes (0 for a capsule), the capsule's rotation (x y z w), its joint's pivot (its centre
 /// for the root), its parent (-1 for the root), its drive's force (N) and torque (N m), 1 if NM sees it touch; then
@@ -278,7 +278,7 @@ fn apply(s: &mut Settings, line: &str) -> Result<(), String> {
 }
 
 native!(set_reactions => set_reactions_impl);
-/// `DMS.SetReactions(line)`: the Playroom's switches for every Homer not running a scenario, `key=value ...` over its
+/// `DMR.SetReactions(line)`: the Playroom's switches for every Homer not running a scenario, `key=value ...` over its
 /// defaults (`settings.txt`'s names: tasks, look, avoid, getup 0-3, extra_reactions, extra_pick, fire_reaction,
 /// dive_shot, dodge_gap, weak, god).
 unsafe fn set_reactions_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -290,7 +290,7 @@ unsafe fn set_reactions_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Strin
 }
 
 native!(reactions => reactions_impl);
-/// `DMS.Reactions()`: what Lua can react with: `{buttons = {...}, extra = {...}, getup = {...}, weapons = {...}}`.
+/// `DMR.Reactions()`: what Lua can react with: `{buttons = {...}, extra = {...}, getup = {...}, weapons = {...}}`.
 unsafe fn reactions_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     unsafe {
         (api.createtable)(l, 0, 4);
@@ -311,11 +311,11 @@ unsafe fn reactions_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(set_tuning => set_tuning_impl);
-/// `DMS.SetTuning(name, lines)`: tuning on with the profile `name` (`msg <message> <param> <value>` and `tp <task>
-/// <set> <param> <value>` lines, docs/adr/0009), from Homers' next steps; `DMS.SetTuning()` turns it off. The number
+/// `DMR.SetTuning(name, lines)`: tuning on with the profile `name` (`msg <message> <param> <value>` and `tp <task>
+/// <set> <param> <value>` lines, docs/adr/0009), from Homers' next steps; `DMR.SetTuning()` turns it off. The number
 /// of values.
 unsafe fn set_tuning_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
-    let d = data::get().ok_or("NM's data isn't loaded (DMS.LoadData)")?;
+    let d = data::get().ok_or("NM's data isn't loaded (DMR.LoadData)")?;
     let name = unsafe { api.check_string(l, 1) }.ok();
     let n = match name {
         Some(name) => {
@@ -329,7 +329,7 @@ unsafe fn set_tuning_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> 
 }
 
 native!(weapons => weapons_impl);
-/// `DMS.Weapons()`: weaponinfo.xml's weapons the Playroom shoots with, `{name = {damage, force}}` (empty without the
+/// `DMR.Weapons()`: weaponinfo.xml's weapons the Playroom shoots with, `{name = {damage, force}}` (empty without the
 /// file: its fallbacks).
 unsafe fn weapons_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let d = data::get();

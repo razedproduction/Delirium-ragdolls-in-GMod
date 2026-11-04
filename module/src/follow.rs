@@ -57,7 +57,7 @@ const PARK_SETTLE: f32 = 1.0;
 const WAKE_SPEED: f32 = 0.5;
 const WAKE_SPIN: f32 = 2.0;
 
-/// How gravity's difference is made up (docs/adr/0007, `dms_gravity_mode`).
+/// How gravity's difference is made up (docs/adr/0007, `dmr_gravity_mode`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GravityMode {
     /// Always: Homer lives in NM's 9.8 m/s^2.
@@ -87,7 +87,7 @@ impl GravityMode {
     }
 }
 
-/// Something for Lua (`DMS.FollowEvents`).
+/// Something for Lua (`DMR.FollowEvents`).
 pub struct Event {
     pub id: u32,
     pub kind: &'static str,
@@ -104,8 +104,8 @@ pub struct Park {
 }
 
 
-/// A scenario running on this agent (the bench, `dms-ctl run`): its commands by NM step, as the Playroom ran them
-/// (golden/README.md, docs/adr/0011), and its record in the Playroom's `--rec` format.
+/// A scenario running on this agent (the bench, `dmr-ctl run`): its commands by NM step, as the Playroom ran them
+/// (fit/README.md, docs/adr/0011), and its record in the Playroom's `--rec` format.
 pub struct Script {
     /// `(step, command)`, in order: each runs before that step.
     pub commands: VecDeque<(u64, String)>,
@@ -151,20 +151,13 @@ impl Script {
     }
 }
 
-/// The body an agent drives: Homer's, or one fitted to a model (ROADMAP M9, `ragdolls.rs`).
+/// The body an agent drives: NM's build fitted to a model (ROADMAP M9, `ragdolls.rs`).
 pub struct BodyDef {
     pub build: delirium::ragdoll::Build,
     pub body: dms_game::body::Body,
     /// Fitted to a model (ROADMAP M10): Homer's get-up clips don't fit it, so it stays down instead (the user's
     /// choice).
     pub fitted: bool,
-}
-
-impl BodyDef {
-    /// Homer's, as the data holds it.
-    pub fn homer(d: &Data) -> Arc<BodyDef> {
-        Arc::new(BodyDef { build: d.homer.clone(), body: d.body.clone(), fitted: false })
-    }
 }
 
 pub struct Follower {
@@ -196,7 +189,7 @@ pub struct Follower {
     kicks: Vec<(usize, Vec3, Vec3)>,
     /// Lines from Lua for the next step.
     queued: Vec<String>,
-    /// The props near him as NM's boxes, in NM's frame (Lua's `DMS.FollowObstacles`, ROADMAP M5).
+    /// The props near him as NM's boxes, in NM's frame (Lua's `DMR.FollowObstacles`, ROADMAP M5).
     pub obstacles: Vec<Obstacle>,
     /// How much of gravity's compensation is on (0 to 1), and the parts the game doesn't pull (`EnableGravity`).
     pub comp: f32,
@@ -232,7 +225,7 @@ pub struct Follower {
     /// The tuning profile's taskparams (docs/adr/0009), none for the game's.
     tuned_tp: Option<Arc<delirium_data::taskparams::TaskParams>>,
     /// Getting up by animation: Lua holds the bodies on the clip (`freeze`, then `frozen` till Lua lets them go
-    /// again on `unfreeze` and says so, `DMS.FollowRiseDone`); then a new agent on them with `respawn`'s lines.
+    /// again on `unfreeze` and says so, `DMR.FollowRiseDone`); then a new agent on them with `respawn`'s lines.
     freeze: bool,
     unfreeze: bool,
     pub frozen: bool,
@@ -337,7 +330,7 @@ impl Follower {
         // As the Playroom makes its agents.
         let agent = core::agent(&def.build, frames, yaw);
         // The Playroom's `face`: his standing forward (from his thighs) in the head capsule's frame.
-        let cap0 = frames[HEAD].rotation * delirium::nmdbm::rage_link(dms_game::HOMER_NM, HEAD);
+        let cap0 = frames[HEAD].rotation * delirium::nmdbm::rage_link(&def.build.links, HEAD);
         let axis = if (cap0 * Vec3::Y).z < 0.0 { -Vec3::Y } else { Vec3::Y };
         let fwd = Vec3::Z.cross(frames[4].translation - frames[1].translation).with_z(0.0).normalize_or(Vec3::Y);
         let ahead = cap0.inverse() * fwd;
@@ -433,7 +426,7 @@ impl Follower {
     /// and up, the head's radius. Forward is the standing pose's, taken in the capsule's frame (`rage_link`), as the
     /// Playroom takes it from its room's start.
     pub fn face(&self) -> (Vec3, Vec3, Vec3, f32) {
-        let link = delirium::nmdbm::rage_link(dms_game::HOMER_NM, HEAD);
+        let link = delirium::nmdbm::rage_link(&self.def.build.links, HEAD);
         let (h, c) = (self.agent.doll.frames().nth(HEAD).unwrap_or_default(), self.agent.doll.capsules().nth(HEAD).unwrap_or_default());
         let r = self.def.build.parts.get(HEAD).map_or(0.1, |p| p.radius);
         (h.rotation.inverse() * (c.translation - h.translation), link * self.face.0, link * self.face.1, r)
@@ -832,7 +825,7 @@ impl Follower {
         if let Some(r) = self.script.as_mut() {
             let _ = writeln!(r.rec, "# {:.2} {s}", self.steps as f32 / 60.0);
         }
-        // The room's lines and the messages they send go to Lua too (`DMS_Reaction`); NM's feedback doesn't.
+        // The room's lines and the messages they send go to Lua too (`DMR_Reaction`); NM's feedback doesn't.
         if !s.starts_with("ours  FB") && self.said.len() < 64 {
             self.said.push(s.to_string());
         }
@@ -846,7 +839,7 @@ impl Follower {
     }
 
     fn unsupported(&mut self, what: &str) {
-        self.say(&format!("dms  unsupported on the bench: {what}"));
+        self.say(&format!("dmr  unsupported on the bench: {what}"));
         if let Some(r) = self.script.as_mut() {
             r.unsupported.push(what.to_string());
         }
@@ -1053,7 +1046,7 @@ impl Follower {
     }
 
     /// `!poke <part> [impulse]`: the Playroom's `poke`, 8 N s into the part away from its camera. Its camera moves
-    /// in the window, so `dms-ctl` hands over the impulse the Playroom's record shows when it has one.
+    /// in the window, so `dmr-ctl` hands over the impulse the Playroom's record shows when it has one.
     fn poke(&mut self, a: &str) {
         let mut w = a.split_whitespace();
         let k: usize = w.next().and_then(|k| k.parse().ok()).unwrap_or(core::POKE_PART).min(PARTS - 1);

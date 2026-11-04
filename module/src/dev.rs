@@ -1,8 +1,8 @@
-//! The control and telemetry channel of `dms-ctl` (ROADMAP M2.5): a TCP server on 127.0.0.1, on only while
-//! `dms_dev 1` (`addon/lua/dms/dev.lua`), behind a token given on each start.
+//! The control and telemetry channel of `dmr-ctl` (ROADMAP M2.5): a TCP server on 127.0.0.1, on only while
+//! `dmr_dev 1` (`addon/lua/dmr/dev.lua`), behind a token given on each start.
 //!
 //! Its threads touch neither Lua nor the physics (docs/adr/0003): they queue requests and send what the main thread
-//! hands them. The main thread takes the queue in `Think` (`DMS.DevThink`): console commands and Lua go back to Lua,
+//! hands them. The main thread takes the queue in `Think` (`DMR.DevThink`): console commands and Lua go back to Lua,
 //! NM messages and scenarios go to the bench agent (`bench.rs`), and each frame's telemetry is published.
 //!
 //! Framing, both ways: a header line, then `len` bytes of UTF-8.
@@ -62,7 +62,7 @@ struct Server {
 }
 
 /// The main thread's side: the LEAD bench and the request whose scenario runs on it; a FOLLOW scenario waiting
-/// for Lua to spawn Homer (`DMS.BenchFollow`), and the one running (its request and agent).
+/// for Lua to spawn a fitted body (`DMR.BenchFitted`), and the one running (its request and agent).
 struct Main {
     bench: Option<Bench>,
     run: Option<(u64, u64)>,
@@ -122,7 +122,7 @@ pub fn start(port: u16, token: &str) -> Result<(), String> {
     });
     let s = shared.clone();
     let thread = thread::Builder::new()
-        .name("dms-dev".into())
+        .name("dmr-dev".into())
         .spawn(move || accept(listener, s))
         .map_err(|e| e.to_string())?;
     *lock(&SERVER) = Some(Server { shared, port, thread: Some(thread) });
@@ -154,7 +154,7 @@ fn accept(listener: TcpListener, shared: Arc<Shared>) {
         match listener.accept() {
             Ok((stream, _)) => {
                 let s = shared.clone();
-                let _ = thread::Builder::new().name("dms-dev-conn".into()).spawn(move || serve(stream, s));
+                let _ = thread::Builder::new().name("dmr-dev-conn".into()).spawn(move || serve(stream, s));
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(50)),
             Err(_) => thread::sleep(Duration::from_millis(200)),
@@ -187,7 +187,7 @@ fn serve(stream: TcpStream, shared: Arc<Shared>) {
     let _ = input.get_ref().set_read_timeout(Some(Duration::from_secs(5)));
     match read_request(&mut input) {
         Some((id, kind, token)) if kind == "auth" && token == shared.token => {
-            let _ = out.write_all(&frame(id, "ok", "dms"));
+            let _ = out.write_all(&frame(id, "ok", "dmr"));
         }
         _ => {
             let _ = out.write_all(&frame(0, "err", "auth first: 0 auth <len>\\n<token>"));
@@ -218,7 +218,7 @@ fn serve(stream: TcpStream, shared: Arc<Shared>) {
             "snapshot" => {
                 let snap = lock(&shared.snapshot);
                 let r = if snap.is_empty() {
-                    Err("no telemetry yet (the server's Think hasn't run with dms_dev 1)".into())
+                    Err("no telemetry yet (the server's Think hasn't run with dmr_dev 1)".into())
                 } else {
                     Ok(json::object(&snap, fields().as_deref()))
                 };
@@ -247,11 +247,11 @@ fn serve(stream: TcpStream, shared: Arc<Shared>) {
 enum Run {
     /// On the LEAD bench (`lead` on the mode line): NM's own body, as in M2.5.
     Lead(ScriptMode, Vec<(f32, String)>),
-    /// On Homer's ragdoll in FOLLOW (ROADMAP M4).
+    /// On a fitted body in FOLLOW (`fit=`, ROADMAP M10), or its build in LEAD.
     Follow(Script),
 }
 
-/// A scenario request (`dms-ctl run` parsed the file): its `#!` mode line (`headless <steps> [press=a,b]` or
+/// A scenario request (`dmr-ctl run` parsed the file): its `#!` mode line (`headless <steps> [press=a,b]` or
 /// `window`, then `lead` for the LEAD bench), then its commands, `@<step> <command>` (the step the Playroom ran it
 /// at, read off its record: docs/adr/0011) or `<t> <command>` (its time; the first runs at step 0).
 fn parse_run(text: &str) -> Result<Run, String> {
@@ -294,6 +294,10 @@ fn parse_run(text: &str) -> Result<Run, String> {
         At::Step(s) => s,
         At::Time(t) => ((t - t0) * 60.0).round().max(0.0) as u64,
     };
+    // This project has no Homer: a FOLLOW scenario runs on a body fitted to a model (`dmr-ctl run --fit`).
+    if !lead && fit.is_none() {
+        return Err("a FOLLOW scenario needs `fit=<model>` on its mode line (dmr-ctl run --fit <model>): there's no Homer here".into());
+    }
     if lead && fit.is_none() {
         let lines = commands.iter().map(|(a, c)| (match *a { At::Time(t) => t, At::Step(s) => s as f32 / 60.0 }, c.clone())).collect();
         return Ok(Run::Lead(mode, lines));
@@ -337,7 +341,7 @@ fn handle(main: &mut Main, r: &Request) -> Option<Result<String, String>> {
         "bench" => Some(match r.text.trim() {
             "reset" => Bench::new(&d).map(|b| {
                 main.bench = Some(b);
-                "the bench agent is new: Homer standing at the room's start, held".to_string()
+                "the bench agent is new: NM's build standing at the room's start, held".to_string()
             }),
             "stop" => {
                 main.bench = None;
@@ -396,27 +400,27 @@ unsafe fn think(api: &Api, l: *mut LuaState, now: f64, tick: f64, dt: f32, gravi
         } else if let Some(answer) = handle(&mut main, &r) {
             shared.reply(r.conn, r.id, answer);
         } else if let Some((conn, id, s)) = main.pending.as_ref().filter(|p| p.0 == r.conn && p.1 == r.id) {
-            // A FOLLOW scenario: Lua spawns Homer at the room's start (up high for the Playroom's `fall`) and hands
-            // him over with DMS.BenchFollow.
+            // A fitted body's scenario: Lua spawns it at the room's start (up high for the Playroom's `fall`) and hands
+            // it over with DMR.BenchFitted.
             // On a stage, at its start (the Playroom's `room.start`): `<up> <stage> <x> <y> <z>`.
             let up = s.fallen_from.unwrap_or(0.0);
             let stage = s.stage.as_deref().unwrap_or("room");
             let [x, y, z] = s.stage.as_deref().and_then(dms_game::stage::stage).map_or([0.0; 3], |s| s.start);
-            // A fitted body's: `... <model> <lead 0|1>` (DMS.BenchFitted).
+            // A fitted body's: `... <model> <lead 0|1>` (DMR.BenchFitted).
             let fit = s.fit.as_deref().map_or(String::new(), |m| format!(" {m} {}", u8::from(s.lead)));
             for_lua.push(Request { conn: *conn, id: *id, kind: "bench_spawn".into(), text: format!("{up} {stage} {x} {y} {z}{fit}") });
         }
     }
     for (agent, f) in step::finished() {
-        // The record is complete: NM comes off the bench's Homer (an ordinary ragdoll till the next run).
+        // The record is complete: NM comes off the bench's body (an ordinary ragdoll till the next run).
         step::unfollow(agent);
         if let Some((conn, id, _)) = main.follow_run.take_if(|r| r.2 == agent) {
-            let note = if f.unsupported.is_empty() { String::new() } else { format!("# dms: not run on the bench: {}\n", f.unsupported.join("; ")) };
+            let note = if f.unsupported.is_empty() { String::new() } else { format!("# dmr: not run on the bench: {}\n", f.unsupported.join("; ")) };
             shared.reply(conn, id, Ok(format!("{note}{}", f.rec)));
         }
     }
     if let Some((conn, id, agent)) = main.follow_run.take_if(|r| step::with(r.2, |_| ()).is_none()) {
-        shared.reply(conn, id, Err(format!("the bench's agent {agent} is gone (NaN, or Homer removed)")));
+        shared.reply(conn, id, Err(format!("the bench's agent {agent} is gone (NaN, or its body removed)")));
     }
     let (g, mode) = step::gravity();
     let mut fields: Vec<(&'static str, String)> = vec![
@@ -441,7 +445,7 @@ unsafe fn think(api: &Api, l: *mut LuaState, now: f64, tick: f64, dt: f32, gravi
                         let note = if f.unsupported.is_empty() {
                             String::new()
                         } else {
-                            format!("# dms: not run on the bench: {}\n", f.unsupported.join("; "))
+                            format!("# dmr: not run on the bench: {}\n", f.unsupported.join("; "))
                         };
                         shared.reply(conn, id, Ok(format!("{note}{}", f.rec)));
                     }
@@ -487,7 +491,6 @@ fn publish(shared: &Shared, fields: Vec<(&'static str, String)>) {
 }
 
 pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
-    (c"BenchFollow", bench_follow),
     (c"BenchFitted", bench_fitted),
     (c"DevStart", dev_start),
     (c"DevStop", dev_stop),
@@ -498,36 +501,23 @@ pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
 ];
 
 native!(dev_panic => dev_panic_impl);
-/// `DMS.DevPanic("native"|"step")`, only while the channel is on: a panic in this native, or in the next agent's
+/// `DMR.DevPanic("native"|"step")`, only while the channel is on: a panic in this native, or in the next agent's
 /// step, to show none crosses into the game (docs/adr/0021): a Lua error, or that agent detached.
 unsafe fn dev_panic_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     if running().is_none() {
-        return Err("only with the dms-ctl channel on (dms_dev 1)".into());
+        return Err("only with the dmr-ctl channel on (dmr_dev 1)".into());
     }
     match unsafe { api.check_string(l, 1)? }.as_str() {
-        "native" => panic!("DMS.DevPanic"),
+        "native" => panic!("DMR.DevPanic"),
         "step" => crate::step::PANIC_NEXT.store(true, std::sync::atomic::Ordering::Relaxed),
         w => return Err(format!("{w}: native or step")),
     }
     Ok(0)
 }
 
-native!(bench_follow => bench_follow_impl);
-/// `DMS.BenchFollow(parts, origin)`: the waiting FOLLOW scenario on Homer, whom Lua just spawned at the room's start
-/// (`origin`, m: NM's frame is the Playroom room's there) and bound. The agent's id; its answer goes to `dms-ctl` as
-/// the scenario ends.
-unsafe fn bench_follow_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
-    let objects = unsafe { agents::parts(api, l, 1)? };
-    let origin = unsafe { api.check_vec3(l, 2)? };
-    // SAFETY: Lua unfollows the bench's Homer before removing him.
-    let agent = unsafe { bench_start(|| agents::start(objects, 0.0, origin.into(), true))? };
-    unsafe { (api.pushnumber)(l, f64::from(agent)) };
-    Ok(1)
-}
-
 native!(bench_fitted => bench_fitted_impl);
-/// `DMS.BenchFitted(model, handle, origin)`: the waiting scenario on a body fitted to `model` (`fit=` on its mode line),
-/// at the room's start (`origin`, m): in FOLLOW on the native body `handle` (`DMS.RagdollBody`, standing there), or
+/// `DMR.BenchFitted(model, handle, origin)`: the waiting scenario on a body fitted to `model` (`fit=` on its mode line),
+/// at the room's start (`origin`, m): in FOLLOW on the native body `handle` (`DMR.RagdollBody`, standing there), or
 /// for `lead` in LEAD on the build alone (`handle` then a PhysObj whose environment it steps with, `up` m high for
 /// the Playroom's `fall`). The agent's id.
 unsafe fn bench_fitted_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -555,7 +545,7 @@ unsafe fn bench_fitted_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
     Ok(1)
 }
 
-/// The waiting scenario on the agent `start` makes; its answer goes to `dms-ctl` as the scenario ends.
+/// The waiting scenario on the agent `start` makes; its answer goes to `dmr-ctl` as the scenario ends.
 ///
 /// # Safety
 /// As `start`'s.
@@ -566,12 +556,12 @@ unsafe fn bench_start(start: impl FnOnce() -> Result<u32, String>) -> Result<u32
         Ok(a) => a,
         Err(e) => {
             if let Some((shared, _)) = running() {
-                shared.reply(conn, id, Err(format!("the bench's Homer: {e}")));
+                shared.reply(conn, id, Err(format!("the bench's body: {e}")));
             }
             return Err(e);
         }
     };
-    // The agent was made with the player's switches (dms_avoid, dms_extra_reactions, ... as saved): a scenario's runs
+    // The agent was made with the player's switches (dmr_avoid, dmr_extra_reactions, ... as saved): a scenario's runs
     // on the Playroom's defaults, and only its `!set` changes them (docs/adr/0020).
     step::with(agent, |f| {
         f.script = Some(script);
@@ -582,7 +572,7 @@ unsafe fn bench_start(start: impl FnOnce() -> Result<u32, String>) -> Result<u32
 }
 
 native!(dev_start => dev_start_impl);
-/// `DMS.DevStart(port, token)`: the channel on 127.0.0.1:`port` (restarted if it runs).
+/// `DMR.DevStart(port, token)`: the channel on 127.0.0.1:`port` (restarted if it runs).
 unsafe fn dev_start_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let port = unsafe { api.check_number(l, 1)? };
     let token = unsafe { api.check_string(l, 2)? };
@@ -594,14 +584,14 @@ unsafe fn dev_start_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(dev_stop => dev_stop_impl);
-/// `DMS.DevStop()`.
+/// `DMR.DevStop()`.
 unsafe fn dev_stop_impl(_api: &Api, _l: *mut LuaState) -> Result<c_int, String> {
     stop();
     Ok(0)
 }
 
 native!(dev_port => dev_port_impl);
-/// `DMS.DevPort()`: the port the channel listens on, nil when it's off.
+/// `DMR.DevPort()`: the port the channel listens on, nil when it's off.
 unsafe fn dev_port_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     match running() {
         Some((_, port)) => unsafe { (api.pushnumber)(l, f64::from(port)) },
@@ -611,9 +601,9 @@ unsafe fn dev_port_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(dev_think => dev_think_impl);
-/// `DMS.DevThink(curTime, tickCount, frameTime, gravity)`: the channel's work for this frame (gravity: Source's, m/s^2,
+/// `DMR.DevThink(curTime, tickCount, frameTime, gravity)`: the channel's work for this frame (gravity: Source's, m/s^2,
 /// up positive). The console commands and Lua that came in, `{conn, id, kind, text}` each, for Lua to run and answer
-/// with `DMS.DevReply`.
+/// with `DMR.DevReply`.
 unsafe fn dev_think_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let now = unsafe { api.check_number(l, 1)? };
     let tick = unsafe { api.check_number(l, 2)? };
@@ -623,7 +613,7 @@ unsafe fn dev_think_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 }
 
 native!(dev_reply => dev_reply_impl);
-/// `DMS.DevReply(conn, id, ok, text)`: the answer to a request `DevThink` handed out.
+/// `DMR.DevReply(conn, id, ok, text)`: the answer to a request `DevThink` handed out.
 unsafe fn dev_reply_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let conn = unsafe { api.check_number(l, 1)? } as u64;
     let id = unsafe { api.check_number(l, 2)? } as u64;
