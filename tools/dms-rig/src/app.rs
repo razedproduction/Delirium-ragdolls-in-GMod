@@ -52,7 +52,7 @@ impl Model {
     }
 
     fn file(&self, gmod: &std::path::Path) -> PathBuf {
-        gmod.join("garrysmod").join("data").join("dms").join("skeletons").join(rigfile::file_name(&self.path))
+        gmod.join("garrysmod").join("data").join("dmr").join("skeletons").join(rigfile::file_name(&self.path))
     }
 }
 
@@ -1264,7 +1264,7 @@ impl App {
         // The file.
         let file = m.file(&self.opts.gmod);
         let dirty = m.saved.as_ref() != Some(&m.rig);
-        ui.label(format!("data/dms/skeletons/{}{}", rigfile::file_name(&m.path), if m.saved.is_none() { " (none yet)" } else if dirty { " (changed)" } else { "" }));
+        ui.label(format!("data/dmr/skeletons/{}{}", rigfile::file_name(&m.path), if m.saved.is_none() { " (none yet)" } else if dirty { " (changed)" } else { "" }));
         ui.horizontal_wrapped(|ui| {
             if ui.button("Save").on_hover_text("Ctrl+S; the game reloads the file and refits the model's ragdolls with NM").clicked() {
                 self.save();

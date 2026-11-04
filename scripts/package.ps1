@@ -1,11 +1,12 @@
-# Builds everything and packs the release: dist\DMS-<version>-win64.zip (docs\install.md says what's in it).
+# Builds the module and packs the release: dist\DMR-<version>-win64.zip (docs\install.md says what's in it).
 #
-#   .\scripts\package.ps1             build (module, dms-homer, the fork) and pack
+#   .\scripts\package.ps1             build the module and pack (the fork: the golden checkout's build)
 #   .\scripts\package.ps1 -NoBuild    pack what's built
 #
-# The version is Cargo.toml's (workspace.package); the Lua addon's DMS_ADDON_VERSION has to be the same (the addon is
-# the Workshop's, published from addon\: docs/adr/0035). Nothing of GTA IV goes in (docs/adr/0006): Homer's model is
-# made on the player's machine by dms-homer.
+# The version is Cargo.toml's (workspace.package); the Lua addon's DMR_ADDON_VERSION has to be the same (the addon is
+# the Workshop's, published from addon\: docs/adr/0035). Nothing of GTA IV goes in (docs/adr/0006). The fork's
+# vphysics.dll and its licences come from the golden checkout next to this one (..\DMS in Gmod, docs/adr/0036), built
+# there by its scripts\build-vphysics.ps1.
 
 param(
 	[switch]$NoBuild
@@ -13,30 +14,22 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$golden = Join-Path (Split-Path -Parent $root) 'DMS in Gmod'
 
 $cargo = Get-Content (Join-Path $root 'Cargo.toml') -Raw
 if ($cargo -notmatch '(?ms)\[workspace\.package\].*?^version\s*=\s*"([^"]+)"') { throw 'no version in Cargo.toml' }
 $version = $Matches[1]
-$init = Get-Content (Join-Path $root 'addon\lua\autorun\server\dms_init.lua') -Raw
-if ($init -notmatch 'DMS_ADDON_VERSION\s*=\s*"([^"]+)"') { throw 'no DMS_ADDON_VERSION in dms_init.lua' }
-if ($Matches[1] -ne $version) { throw "dms_init.lua's DMS_ADDON_VERSION is $($Matches[1]), Cargo.toml's version $version" }
+$init = Get-Content (Join-Path $root 'addon\lua\autorun\server\dmr_init.lua') -Raw
+if ($init -notmatch 'DMR_ADDON_VERSION\s*=\s*"([^"]+)"') { throw 'no DMR_ADDON_VERSION in dmr_init.lua' }
+if ($Matches[1] -ne $version) { throw "dmr_init.lua's DMR_ADDON_VERSION is $($Matches[1]), Cargo.toml's version $version" }
 
 if (-not $NoBuild) {
 	& (Join-Path $PSScriptRoot 'build.ps1')
-	Push-Location $root
-	try {
-		& cargo build --release -p dms-homer
-		if ($LASTEXITCODE -ne 0) { throw "cargo build dms-homer failed ($LASTEXITCODE)" }
-	} finally {
-		Pop-Location
-	}
-	& (Join-Path $PSScriptRoot 'build-vphysics.ps1')
 }
 
 $bins = [ordered]@{
-	'gmsv_dms_win64.dll' = Join-Path $root 'dist\gmsv_dms_win64.dll'
-	'dms-homer.exe' = Join-Path $root 'target\release\dms-homer.exe'
-	'vphysics.dll' = Join-Path $root 'vphysics\build\windows-x64\src\Release\vphysics.dll'
+	'gmsv_dmr_win64.dll' = Join-Path $root 'dist\gmsv_dmr_win64.dll'
+	'vphysics.dll' = Join-Path $golden 'vphysics\build\windows-x64\src\Release\vphysics.dll'
 }
 foreach ($b in $bins.Values) { if (-not (Test-Path $b)) { throw "$b isn't built" } }
 
@@ -51,8 +44,7 @@ if (Test-Path $vswhere) {
 }
 $crtMaths = '^(_?_?(sin|cos|tan|asin|acos|atan2?|exp|log|pow|fma)f?(_fma3?)?|__remainder_piby2.*)$'
 $withPdb = @{
-	'gmsv_dms_win64.dll' = Join-Path $root 'target\x86_64-pc-windows-msvc\release\gmsv_dms.dll'
-	'dms-homer.exe' = $bins['dms-homer.exe']
+	'gmsv_dmr_win64.dll' = Join-Path $root 'target\x86_64-pc-windows-msvc\release\gmsv_dmr.dll'
 }
 if ($dumpbin) {
 	foreach ($name in $withPdb.Keys) {
@@ -68,12 +60,12 @@ if ($dumpbin) {
 		$crt = & $dumpbin /nologo /dependents $bins[$name] | Select-String -Pattern '(?i)vcruntime|msvcp'
 		if ($crt) { throw "$name needs $($crt.Line.Trim()): the C runtime has to be linked in (.cargo\config.toml)" }
 	}
-	Write-Host 'checked: gmsv_dms_win64.dll and dms-homer.exe: FMA only in the C runtime''s dispatched maths, no VCRUNTIME'
+	Write-Host 'checked: gmsv_dmr_win64.dll: FMA only in the C runtime''s dispatched maths, no VCRUNTIME'
 } else {
 	Write-Warning 'dumpbin not found: the binaries were not checked for FMA and the C runtime'
 }
 
-$name = "DMS-$version-win64"
+$name = "DMR-$version-win64"
 $stage = Join-Path $root "dist\$name"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force -Confirm:$false }
 New-Item -ItemType Directory -Force (Join-Path $stage 'bin'), (Join-Path $stage 'licenses') | Out-Null
@@ -99,7 +91,7 @@ $licences = [ordered]@{
 	'SourceSDK2013-thirdpartylegalnotices.txt' = 'vphysics\external\source-sdk-2013\thirdpartylegalnotices.txt'
 }
 foreach ($l in $licences.GetEnumerator()) {
-	$from = Join-Path $root $l.Value
+	$from = Join-Path $golden $l.Value
 	if (-not (Test-Path $from)) { throw "$from not found (git submodule update --init?)" }
 	Copy-Item $from (Join-Path $stage "licenses\$($l.Key)")
 }

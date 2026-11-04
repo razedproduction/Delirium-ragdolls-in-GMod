@@ -1,4 +1,4 @@
-//! NM's inputs, straight out of the user's copy of GTA IV (`dms_game_dir`), as the Playroom takes them with
+//! NM's inputs, straight out of the user's copy of GTA IV (`dmr_game_dir`), as the Playroom takes them with
 //! `--game` (docs/adr/0008, 0009): fred.xrt, taskparams.txt (if the game has one), materials.dat's surfaces and
 //! Homer's build from `m_y_pmanhat_01`. Nothing is copied out of the game.
 //!
@@ -51,8 +51,8 @@ pub fn unload() {
 
 /// What to tell someone who hasn't set the game's folder.
 pub fn how_to() -> String {
-    "set dms_game_dir to your GTA IV folder (PC: the one with the Steam version's GTAIV.exe and pc\\; Xbox 360: \
-     the one with default.xex), e.g.  dms_game_dir \"D:\\Games\\Grand Theft Auto IV\"  (the game's files are read \
+    "set dmr_game_dir to your GTA IV folder (PC: the one with the Steam version's GTAIV.exe and pc\\; Xbox 360: \
+     the one with default.xex), e.g.  dmr_game_dir \"D:\\Games\\Grand Theft Auto IV\"  (the game's files are read \
      from there, nothing is copied; Delirium reads its own numbers from that GTAIV.exe or default.xex too)"
         .into()
 }
@@ -94,7 +94,7 @@ fn read(dir: &str) -> Result<Data, String> {
     let taskparams = match &tp_text {
         Some(text) => {
             // The SDK reads them from a file; the game's may be inside an archive.
-            let tmp = std::env::temp_dir().join(format!("dms-taskparams-{}.txt", std::process::id()));
+            let tmp = std::env::temp_dir().join(format!("dmr-taskparams-{}.txt", std::process::id()));
             std::fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
             let r = nm::load_task_params(&tmp);
             let _ = std::fs::remove_file(&tmp);

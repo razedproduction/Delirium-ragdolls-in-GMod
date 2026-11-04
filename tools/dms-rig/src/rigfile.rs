@@ -1,5 +1,5 @@
-//! A model's rig file, `garrysmod/data/dms/skeletons/<model>.json` (format 2, docs/adr/0030): what the addon reads
-//! (`addon/lua/dms/skeletons.lua`) and reloads as it changes. `{dms_skeleton = 2, model, checksum, bones = {[part] =
+//! A model's rig file, `garrysmod/data/dmr/skeletons/<model>.json` (format 2, docs/adr/0030): what the addon reads
+//! (`addon/lua/dmr/skeletons.lua`) and reloads as it changes. `{dms_skeleton = 2, model, checksum, bones = {[part] =
 //! bone}, joints = {[part] = {x, y, z}} (units, the model's space), parts = {[part] = {radius, half, box = {x, y, z}
 //! (m), mass (kg), offset = {x, y, z} (m, the part's frame), turn = {p, y, r} (degrees)}}}`.
 
@@ -20,7 +20,7 @@ pub struct Rig {
 }
 
 impl Rig {
-    /// The fit's arguments, as the addon's `DMS_RigArgs` makes them: the mapping (none if empty) and the edits (none
+    /// The fit's arguments, as the addon's `DMR_RigArgs` makes them: the mapping (none if empty) and the edits (none
     /// if nothing is edited).
     pub fn args(&self) -> (Option<&[(String, String)]>, Option<&Edits>) {
         let edited = self.edits.joints.iter().any(|j| *j != Vec3::ZERO) || self.edits.parts.iter().any(|p| *p != rigs::PartEdit::default());
@@ -28,7 +28,7 @@ impl Rig {
     }
 }
 
-/// The rig file's path under `data/dms/skeletons/` for a model (`skeletons.lua`'s `path`).
+/// The rig file's path under `data/dmr/skeletons/` for a model (`skeletons.lua`'s `path`).
 pub fn file_name(model: &str) -> String {
     // Lua's string functions go byte by byte: a UTF-8 letter is as many `_`.
     let m = model.to_ascii_lowercase().replace('\\', "/");

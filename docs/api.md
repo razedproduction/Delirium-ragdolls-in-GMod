@@ -1,46 +1,45 @@
-# DMS's Lua API
+# DMR's Lua API
 
-Homer in FOLLOW mode: NM (Delirium) drives the `models/dms/homer.mdl` ragdoll, and the Playroom's reaction layer (ADR
-0016, 0020) answers what the game does to him. Everything is on the server; only a superadmin can change anything
-from the console and the menu.
+GMod's humanoid ragdolls in FOLLOW mode: NM (Delirium) drives a body fitted to the model (its native body, made by the
+fork, the model posed from it: ADR 0025, 0027), and the Playroom's reaction layer (ADR 0016, 0020) answers what the
+game does to it. Everything is on the server; only a superadmin can change anything from the console and the menu.
 
 ## Quick start
 
 ```lua
--- A Homer from the spawn menu is bound by itself (dms_autoattach 1); your own: dms_homer or DMS_SpawnHomer(pos, yaw).
-local c = dms.Attach(rag)          -- NM on the ragdoll + bodyBalance (the Playroom's "balance" button)
+-- Any humanoid prop_ragdoll (a citizen: dmr_ragdoll; from the spawn menu with dmr_autoattach_ragdolls 1).
+local c = dmr.Attach(rag)          -- NM on the ragdoll + bodyBalance (the Playroom's "balance" button)
 c:Shot(9, nil, "shotgun")          -- a shotgun shot in the chest: applyImpulse + the Playroom's ShotTask
 c:Send("headLook", { start = true, pos = ply:EyePos() })
-print(c:GetState().health)         -- 200 for a living Homer, damage is the game's ped::damage
-dms.Detach(rag)                    -- an ordinary ragdoll
+print(c:GetState().health)         -- 200 for a living body, damage is the game's ped::damage
+local _, rag2 = dmr.Detach(rag)    -- the model's own ragdoll again, moving on as NM's body was
 ```
 
 ## Versions
 
-`DMS.Version` (the module), `DMS_ADDON_VERSION` (the Lua addon), `DMS.DeliriumVersion` (the Delirium built into the
-module), `DMS.InterfaceVersion()` (the fork's `IPhysicsNM`, `VBOX3D_NM_004` needed, `VBOX3D_NM_006` for GMod's ragdolls), `DMS.HomerModelVersion` (the body
-`homer.mdl` has to be made for; `DMS_HomerModelVersion()` reads the model's mark). The module and the addon of
-different releases don't start; `DMS_Problems()` lists what keeps Homer from working (the fork, the model, the GTA IV
-folder), `dms_info` prints it all.
+`DMR.Version` (the module), `DMR_ADDON_VERSION` (the Lua addon), `DMR.DeliriumVersion` (the Delirium built into the
+module), `DMR.InterfaceVersion()` (the fork's `IPhysicsNM`, `VBOX3D_NM_006` needed). The module and the addon of
+different releases don't start; `DMR_Problems()` lists what keeps DMR from working (the fork, the GTA IV folder),
+`dmr_info` prints it all.
 
-## `dms.*`
+## `dmr.*`
 
 | Function | What it does |
 |---|---|
-| `dms.Attach(rag[, opts])` | NM on Homer or on any humanoid `prop_ragdoll` whose skeleton is mapped (ValveBiped, a known rig, a saved mapping: docs/adr/0030) (`opts.balance = false`: without `bodyBalance`). A controller, or `nil, reason`. Homer has to be bound to NM's body (spawned through `dms_homer`, `DMS_SpawnHomer` or the spawn menu); a ValveBiped ragdoll gets a body fitted to its model that takes its pose and motion (ADR 0027) |
-| `dms.Detach(rag)` | NM off: armature 0, no drives, an ordinary ragdoll. A fitted one is given back as a new ragdoll in NM's pose and motion: `true, newRagdoll` |
-| `dms.Get(rag)` | Homer's controller with NM, or `nil` |
-| `dms.All()` | the controllers of every Homer with NM |
-| `dms.Messages()` | the names of all NM messages (behaviours) |
-| `dms.MessageParams(name)` | a message's params: `{name, kind, used, doc, default}` (`used = false`: the port takes it but doesn't use it) |
-| `dms.Reactions()` | `{buttons, extra, getup, weapons}`: the Playroom's buttons, additional reactions, get-up modes, weapons |
+| `dmr.Attach(rag[, opts])` | NM on any humanoid `prop_ragdoll` whose skeleton is mapped (ValveBiped, a known rig, a saved mapping: docs/adr/0030) (`opts.balance = false`: without `bodyBalance`): a body fitted to its model that takes its pose and motion (ADR 0027). A controller, or `nil, reason` |
+| `dmr.Detach(rag)` | NM off: the model's own ragdoll is given back as a new ragdoll in NM's pose and motion: `true, newRagdoll` |
+| `dmr.Get(rag)` | a ragdoll's controller with NM, or `nil` |
+| `dmr.All()` | the controllers of every body with NM |
+| `dmr.Messages()` | the names of all NM messages (behaviours) |
+| `dmr.MessageParams(name)` | a message's params: `{name, kind, used, doc, default}` (`used = false`: the port takes it but doesn't use it) |
+| `dmr.Reactions()` | `{buttons, extra, getup, weapons}`: the Playroom's buttons, additional reactions, get-up modes, weapons |
 
 ## The controller
 
 | Method | What it does |
 |---|---|
 | `c:Send(msg[, params])` | an NM message as the Playroom's console takes it: `c:Send("bodyBalance start=true")` or `c:Send("bodyBalance", {start = true})`. A `Vector` is a game point (turned into NM's frame); for directions (`dir`, `normal`, `bulletVel`, `impulse`, `vel`, `fallOverEdge`) as is; a string `"x,y,z"` is NM's frame untouched |
-| `c:React(line)` | a reaction of the Playroom's room layer (a `DMS.FollowReact` line, below) |
+| `c:React(line)` | a reaction of the Playroom's room layer (a `DMR.FollowReact` line, below) |
 | `c:Shot(where[, dir][, weapon])` | a shot: `where` is a part 0–20 or a point (`Vector`), `weapon` one of `pistol deagle smg ak47 sniper shotgun rpg grenade molotov bat knife taser baton` |
 | `c:Button(name)` | a Playroom button (`balance`, `catchfall`, `flinch`, `brace`, `relax`, `STOP all`, …, `shot`, `shot back`) |
 | `c:Balance()`, `c:CatchFall()`, `c:Relax()`, `c:Stop()` | the buttons `balance`, `catchfall`, `relax`, `STOP all` |
@@ -54,35 +53,33 @@ folder), `dms_info` prints it all.
 
 | Hook | Arguments | When |
 |---|---|---|
-| `DMS_Attached` | `ent, id` | NM is on |
-| `DMS_Detached` | `ent, why` | NM is off (`detached`, or NaN / blow-up: the reason) |
-| `DMS_Fallen` | `ent` | NM's balancer gave up |
-| `DMS_Feedback` | `ent, name, slot, value` | NM's feedback (after every NM step) |
-| `DMS_Died` | `ent` | health 0: Homer went limp |
-| `DMS_Reaction` | `ent, text` | a log line of the Playroom's room layer (`room  shot (pistol) at part 9 …`) |
-| `DMS_Teleported` | `ent, metres` | the game moved the bodies (`PhysObj:SetPos`): NM's frame and its world moved with them |
-| `DMS_DeathRagdoll` | `ragdoll, player` | a dead NPC's or player's ragdoll got NM, the killing hit sent to it (`player`: nil for an NPC) |
+| `DMR_Attached` | `ent, id` | NM is on |
+| `DMR_Detached` | `ent, why` | NM is off (`detached`, or NaN / blow-up: the reason) |
+| `DMR_Fallen` | `ent` | NM's balancer gave up |
+| `DMR_Feedback` | `ent, name, slot, value` | NM's feedback (after every NM step) |
+| `DMR_Died` | `ent` | health 0: the body went limp |
+| `DMR_Reaction` | `ent, text` | a log line of the Playroom's room layer (`room  shot (pistol) at part 9 …`) |
+| `DMR_Teleported` | `ent, metres` | the game moved the bodies (`PhysObj:SetPos`): NM's frame and its world moved with them |
+| `DMR_DeathRagdoll` | `ragdoll, player` | a dead NPC's or player's ragdoll got NM, the killing hit sent to it (`player`: nil for an NPC) |
 
 ## Lifecycle (M7, ADR 0021)
 
-| Event | What DMS does |
+| Event | What DMR does |
 |---|---|
 | removal, `undo`, `gmod_admin_cleanup` | `OnRemove` takes the agent off before the bodies go |
 | a map change, quitting | the `ShutDown` hook and `gmod13_close`: agents and the step callback off before the physics environment |
 | a Lua restart (auto-refresh, `lua_openscript`) | the module and agents stay (`require` once a Lua state) |
-| the duplicator, save/load (`gm_save`) | DMS's fields don't go into the copy (`PreEntityCopy`); the copy is bound and gets NM if the original had it (or with `dms_autoattach`); a ValveBiped ragdoll's copy gets its own physics back (unfrozen) and NM on it again |
-| freezing a part (physgun, a tool) | NM is parked while the part is frozen; the get-up clip's freezing is its own |
-| picking up with the physgun or gravity gun during the get-up clip | the clip is broken off, the bodies unfrozen, a new agent balances on them |
+| the duplicator, save/load (`gm_save`) | DMR's fields don't go into the copy (`PreEntityCopy`); a ragdoll's copy gets its own physics back (unfrozen) and NM on it again |
 | teleporting the bodies | NM's frame and the world's crop move, the agent and its state aren't reset |
 | welds, ropes | NM stays (outside forces, like a grab) |
-| a joint part is lost (`RemoveInternalConstraint`) | NM comes off (`DMS_Detached`, "joint is gone") |
-| a panic in the module | a native: a Lua error; an agent's step: only that agent comes off (`DMS_Detached`, `panic: …`) |
+| a joint part is lost (`RemoveInternalConstraint`) | NM comes off (`DMR_Detached`, "joint is gone") |
+| a panic in the module | a native: a Lua error; an agent's step: only that agent comes off (`DMR_Detached`, `panic: …`) |
 
-LOD: farther than `dms_lod_distance` (3000 units, 0: off) from every player, Homer gets the `relax` button, after 1 s NM
-is parked (no steps, drives or armature: an ordinary ragdoll; the agent, health and behaviour are kept) and comes back
-when a player is near; lying still for `dms_lod_still` s (5, 0: off), he's parked until the bodies' first movement, a
-reaction or a message. The limit is `dms_max_agents` (8): Homers beyond it stay ordinary ragdolls. Agents are stepped on
-`dms_threads` threads (0: CPU cores less one).
+LOD: farther than `dmr_lod_distance` (3000 units, 0: off) from every player, a body gets the `relax` button, after 1 s NM
+is parked (no steps, drives or armature; the agent, health and behaviour are kept) and comes back when a player is
+near; lying still for `dmr_lod_still` s (5, 0: off), it's parked until the bodies' first movement, a reaction or a
+message. The limit is `dmr_max_agents` (8): ragdolls beyond it stay ordinary ragdolls. Agents are stepped on
+`dmr_threads` threads (0: CPU cores less one).
 
 ## Death ragdolls (M11, ADR 0028)
 
@@ -98,14 +95,14 @@ place; removed (cleanup, undo, a fade), NM goes with it.
 
 | Convar | Default | What |
 |---|---|---|
-| `dms_autoattach_npc` | 1 | NM on killed NPCs' ragdolls |
-| `dms_autoattach_players` | 1 | NM on killed players' ragdolls |
-| `dms_autoattach_max` | 4 | death ragdolls with NM at once (within `dms_max_agents`): a new one takes NM off the oldest |
-| `dms_autoattach_time` | 30 | seconds a death ragdoll keeps NM, then it's an ordinary ragdoll (0: till the limit takes it) |
+| `dmr_autoattach_npc` | 1 | NM on killed NPCs' ragdolls |
+| `dmr_autoattach_players` | 1 | NM on killed players' ragdolls |
+| `dmr_autoattach_max` | 4 | death ragdolls with NM at once (within `dmr_max_agents`): a new one takes NM off the oldest |
+| `dmr_autoattach_time` | 30 | seconds a death ragdoll keeps NM, then it's an ordinary ragdoll (0: till the limit takes it) |
 
-NM off a death ragdoll is `dms.Detach`'s swap: an ordinary ragdoll of the model in its place. A model's first NM body
+NM off a death ragdoll is `dmr.Detach`'s swap: an ordinary ragdoll of the model in its place. A model's first NM body
 needs the fork's hulls (~0.9 s): an NPC's or a player's model is fitted and hulled ahead as they spawn, a part a tick.
-`DMS_DeathRagdolls()` lists the death ragdolls with NM, oldest first.
+`DMR_DeathRagdolls()` lists the death ragdolls with NM, oldest first.
 
 ## Live bodies (M11.5, ADR 0029)
 
@@ -113,23 +110,23 @@ A humanoid NPC shot and not killed becomes a server ragdoll of its model with NM
 as it was), the bullet the room's shot (`shot at= dir= weapon= part=`); the NPC itself is hidden meanwhile (not drawn,
 not solid, not thinking or targeted), keeping its health, relationships and weapon. Hits on the ragdoll are the NPC's
 (scaled for the hitgroup by the gamemode, `ScaleNPCDamage`). Once the room's ShotTask is over and the body has settled
-(standing, or lying still), or after `dms_live_time`, the NPC stands where the body is, facing as it did, and the ragdoll
+(standing, or lying still), or after `dmr_live_time`, the NPC stands where the body is, facing as it did, and the ragdoll
 goes; killed meanwhile, that ragdoll is its death ragdoll (fatally injured, as above).
 
-`dms_drunk` (the DMS window's "Drunk (you)"): the player becomes a ragdoll of their model with the Playroom's `drunk`
+`dmr_drunk` (the DMR window's "Drunk (you)"): the player becomes a ragdoll of their model with the Playroom's `drunk`
 button on it, the camera on the body as the death camera (the mouse turns it), their own moves and buttons ignored;
-`dms_drunk` again stands them up where the body is. Hits on it are theirs; dying drunk, it's their death ragdoll.
+`dmr_drunk` again stands them up where the body is. Hits on it are theirs; dying drunk, it's their death ragdoll.
 
 | Convar | Default | What |
 |---|---|---|
-| `dms_live_npc` | 1 | shot NPCs become ragdolls with NM, then get up |
-| `dms_live_max` | 4 | NPCs that are ragdolls at once (within `dms_max_agents`); more take shots as the game does |
-| `dms_live_time` | 15 | seconds at most an NPC stays a ragdoll |
+| `dmr_live_npc` | 1 | shot NPCs become ragdolls with NM, then get up |
+| `dmr_live_max` | 4 | NPCs that are ragdolls at once (within `dmr_max_agents`); more take shots as the game does |
+| `dmr_live_time` | 15 | seconds at most an NPC stays a ragdoll |
 
-`DMS_LiveBodies()` lists `{owner, rag, kind ("npc", "drunk"), since}`; hooks `DMS_LiveStarted(owner, rag)` and
-`DMS_LiveEnded(owner)`. `DMS.FollowRoom(id)` has `shot` and `blast`: the room's ShotTask and explosion task run.
+`DMR_LiveBodies()` lists `{owner, rag, kind ("npc", "drunk"), since}`; hooks `DMR_LiveStarted(owner, rag)` and
+`DMR_LiveEnded(owner)`. `DMR.FollowRoom(id)` has `shot` and `blast`: the room's ShotTask and explosion task run.
 
-## Reactions (`DMS.FollowReact(id, line)`, `dms_react`)
+## Reactions (`DMR.FollowReact(id, line)`, `dmr_react`)
 
 Points are `x,y,z` in metres, the game's frame. What the Playroom does on each: `module/src/follow/room.rs` (the port
 of `Sim`).
@@ -149,79 +146,75 @@ of `Sim`).
 | `button name=<button>` | `button` | the button's messages (`Sim::lines`); `STOP_all` is `STOP all` |
 | `health value=`, `kill` | — | health; `kill`: a fatal shot |
 
-The game is turned into reactions by itself (`addon/lua/dms/reactions.lua`): `EntityTakeDamage` (bullets → `shot`, one
+The game is turned into reactions by itself (`addon/lua/dmr/reactions.lua`): `EntityTakeDamage` (bullets → `shot`, one
 tick's pellets → one `shot` with `more`, a blast → `blast`, fire → `burn`, a blow → `melee`, a stun gun → `taser`),
 `PhysicsCollide` (a car → `car`, a prop → `prop`), `EntityFireBullets` (a miss → `nearmiss`), the physgun and gravity
 gun (`thrown`, `dropped`). The push of a bullet or blast is the Playroom's `applyImpulse`, so Garry's Mod's own damage
-force on Homer is zeroed.
+force on the body is zeroed.
 
 ## The Playroom's switches (convars, the Playroom's defaults)
 
 | Convar | Default | What |
 |---|---|---|
-| `dms_tasks` | 0 | the game's tasks: NM → animation as a task ends |
-| `dms_look`, `dms_avoid` | 1, 0 | looks at what's thrown / dodges it |
-| `dms_getup` | 0 | getting up: 0 the game's clip, 1 muscles (NMPose along the clip), 2 doesn't get up, 3 the learned network (not ported) |
-| `dms_extra_reactions`, `dms_extra_pick` | 0, 255 | v0.2.1's additional reactions and which of them (bits: windmill, curl up, curl up under fire, look at who hit him, tumble off a ledge, smartFall when dropped, dodge from above, brace on a wall) |
-| `dms_fire_reaction` | 1 | OnFire while burning |
-| `dms_dive_shot`, `dms_dodge_gap` | 0, 3 | a dive when shot at again |
-| `dms_weak`, `dms_god` | 0, 0 | weak weapon sets, infinite health |
+| `dmr_tasks` | 0 | the game's tasks: NM → animation as a task ends |
+| `dmr_look`, `dmr_avoid` | 1, 0 | looks at what's thrown / dodges it |
+| `dmr_getup` | 0 | getting up: 0 the game's clip, 1 muscles (NMPose along the clip), 2 doesn't get up, 3 the learned network (not ported) |
+| `dmr_extra_reactions`, `dmr_extra_pick` | 0, 255 | v0.2.1's additional reactions and which of them (bits: windmill, curl up, curl up under fire, look at who hit him, tumble off a ledge, smartFall when dropped, dodge from above, brace on a wall) |
+| `dmr_fire_reaction` | 1 | OnFire while burning |
+| `dmr_dive_shot`, `dmr_dodge_gap` | 0, 3 | a dive when shot at again |
+| `dmr_weak`, `dmr_god` | 0, 0 | weak weapon sets, infinite health |
 
-Bench and golden scenarios always run on the Playroom's defaults (only a scenario's `!set` changes them).
+Bench scenarios (`dmr-check fit`) always run on the Playroom's defaults (only a scenario's `!set` changes them).
 
 ## Tuning (ADR 0009)
 
-`dms_tuning 0|1`, `dms_tuning_profile <name>`; profiles are `garrysmod/data/dms/profiles/*.json`
+`dmr_tuning 0|1`, `dmr_tuning_profile <name>`; profiles are `garrysmod/data/dmr/profiles/*.json`
 (`{name, messages = {[message] = {[param] = "value"}}, taskparams = {["task set param"] = number}}`), differences from
 the Playroom only; "Playroom" is empty and can't be changed. A profile's values are added to the messages that start a
 behaviour or change its params, unless the line sets them itself; taskparams go over the game's file.
-`dms_tuning_status`: the active values. The menu is the DMS window (ADR 0022): `dms_menu`, the key from `dms_menu_key`,
-the DMS icon in the context menu (C) or "Utilities → DMS → Homer (Delirium)".
+`dmr_tuning_status`: the active values. The menu is the DMR window (ADR 0022): `dmr_menu`, the key from `dmr_menu_key`,
+the DMR icon in the context menu (C) or "Utilities → DMR → Ragdolls (Delirium)".
 
-## The DMS window (ADR 0022)
+## The DMR window (ADR 0022)
 
-Tabs: Homer (spawning, NM on/off the Homer you look at and every Homer, `dms_autoattach`, what this client draws,
-colours, the window's key), Reactions (the Playroom's switches, get-up, additional reactions, try-outs), Tuning, Task
-params, Performance (the M7 convars), Debug (the versions and problems, buttons for `dms_status`, `dms_selftest`,
-`dms_data`, `dms_info`, `dms_tuning_status`, `dms_nm_messages`, `dms_nm_parts`, `dms_nm_joints`, an NM message line to
-the Homer you look at, `dms_react_log`, the overlay). The help pane on the right explains what's under the cursor.
+Tabs: Ragdolls (NM on/off the ragdoll you look at and every ragdoll, a citizen with NM, the fit under the crosshair,
+auto-attach on spawned ragdolls, death ragdolls and live NPCs, the drunk mode, NM's bodies drawn over the ragdolls, the
+window's key), Reactions (the Playroom's switches, get-up, additional reactions, try-outs), Tuning, Task params,
+Performance (the M7 convars), Debug (the versions and problems, buttons for `dmr_status`, `dmr_selftest`, `dmr_data`,
+`dmr_info`, `dmr_tuning_status`, `dmr_nm_messages`, `dmr_nm_parts`, `dmr_nm_joints`, an NM message line to the ragdoll
+you look at, `dmr_react_log`). The help pane on the right explains what's under the cursor.
 
-## The DMS tool (ADR 0023)
+## The DMR tool (ADR 0023)
 
-Toolgun → Tools tab → "DMS". The mode (`dms_tool_mode`): `attach`, `react`, `behaviour`, `target`, `inspect`, `kick`,
-`throw`, `health`, `pin`; what the left and right buttons and R do is in the tool's hint and ADR 0023. Options:
-`dms_tool_reaction`, `dms_tool_weapon`, `dms_tool_damage`, `dms_tool_impulse`, `dms_tool_behaviour`, `dms_tool_target`
-(`look|point|lean|flinch|grab`), `dms_tool_speed`, `dms_tool_health`. Server: `dms_tool_everyone 0|1` (superadmins only
-by default). Lua: `DMS_ReactAt(ent, kind, rest, hit, from, impulse)`, the Playroom's reaction at a point;
-`DMS_SpawnHomerFor(ply, pos, yaw)`, a Homer with NM for a player.
+Toolgun → Tools tab → "DMR". The mode (`dmr_tool_mode`): `attach`, `react`, `behaviour`, `target`, `inspect`, `kick`,
+`health`; what the left and right buttons and R do is in the tool's hint and ADR 0023 (its throw and pins were
+Homer's: gone with him). Options: `dmr_tool_reaction`, `dmr_tool_weapon`, `dmr_tool_damage`, `dmr_tool_impulse`,
+`dmr_tool_behaviour`, `dmr_tool_target` (`look|point|lean|flinch|grab`), `dmr_tool_health`. Server:
+`dmr_tool_everyone 0|1` (superadmins only by default). Lua: `DMR_ReactAt(ent, kind, rest, hit, from, impulse)`, the
+Playroom's reaction at a point.
 
 ## Console
 
 | Command | What |
 |---|---|
-| `dms_homer` | Homer in front of the player, NM, `bodyBalance` |
-| `dms_attach` | NM on the Homer or humanoid ragdoll the player looks at, as it lies or falls |
-| `dms_detach` | NM off the ragdoll the player looks at (a fitted one moves on with its own physics) |
-| `dms_detach_all` | NM off every body |
-| `dms_ragdoll [model]` | a model's ragdoll (default male_07) in front of the player on a fitted body, NM, `bodyBalance` |
-| `dms_fit [model]` | the model's fit: its rig, height, mass, warnings (kept by the model, its checksum and mapping) |
-| `dms_rig [model]` | what the model's skeleton is to DMS: its rig (ValveBiped, Biped, Mixamo, Unreal, TF2, VRoid, MMD, `by names`, `mapped`, `unknown`, `not humanoid`), the bone at each NM joint, what's missing, the reader's report (docs/adr/0030) |
-| `dms_rig_view 1` (client) | NM's bodies (capsules) drawn over the ragdolls with NM near you (superadmins) |
+| `dmr_attach` | NM on the humanoid ragdoll the player looks at, as it lies or falls |
+| `dmr_detach` | NM off the ragdoll the player looks at (a fitted one moves on with its own physics) |
+| `dmr_detach_all` | NM off every body |
+| `dmr_ragdoll [model]` | a model's ragdoll (default male_07) in front of the player on a fitted body, NM, `bodyBalance` |
+| `dmr_fit [model]` | the model's fit: its rig, height, mass, warnings (kept by the model, its checksum and mapping) |
+| `dmr_rig [model]` | what the model's skeleton is to DMR: its rig (ValveBiped, Biped, Mixamo, Unreal, TF2, VRoid, MMD, `by names`, `mapped`, `unknown`, `not humanoid`), the bone at each NM joint, what's missing, the reader's report (docs/adr/0030) |
+| `dmr_rig_view 1` (client) | NM's bodies (capsules) drawn over the ragdolls with NM near you (superadmins) |
+| `dmr_autoattach_ragdolls 1` | NM on humanoid ragdolls spawned from the spawn menu (off by default) |
+| `dmr_send <line>` | an NM message to the ragdoll under the crosshair (from the server console: to all) |
+| `dmr_react <reaction> [key=value …]` | a reaction of the ragdoll under the crosshair; without `at=`, the crosshair's point |
+| `dmr_status`, `dmr_tuning_status` | the agents (NM's step cost, threads, LOD), tuning |
+| `dmr_info` | versions (module, addon, Delirium, `IPhysicsNM`) and what's wrong |
+| `dmr_game_dir "<folder>"`, `dmr_data`, `dmr_selftest` | your GTA IV folder, NM's data from it, NM's self-test (docs/data-setup.md) |
+| `dmr_react_log 1` | print the room layer's log |
 
-A model's rig made by hand is `data/dms/skeletons/<model path without models/ and .mdl>.json` (docs/adr/0030): a bone
-per NM part, joints moved, parts' sizes, masses and placement on the model. The addon reads it again as the file changes
-and puts NM again on the model's ragdolls by it; copy the file to share it.
-| `dms_autoattach_ragdolls 1` | NM on humanoid ragdolls spawned from the spawn menu (off by default) |
-| `dms_send <line>` | an NM message to the Homer under the crosshair (from the server console: to all) |
-| `dms_react <reaction> [key=value …]` | a reaction of the Homer under the crosshair; without `at=`, the crosshair's point |
-| `dms_status`, `dms_tuning_status` | the agents (NM's step cost, threads, LOD), tuning |
-| `dms_info` | versions (module, addon, Delirium, `IPhysicsNM`, Homer's model) and what's wrong |
-| `dms_game_dir "<folder>"`, `dms_data`, `dms_selftest` | your GTA IV folder, NM's data from it, NM's self-test (docs/data-setup.md) |
-| `dms_react_log 1` | print the room layer's log |
+A model's rig made by hand is `data/dmr/skeletons/<model path without models/ and .mdl>.json` (docs/adr/0030; its
+`dms_skeleton` format key as before the split): a bone per NM part, joints moved, parts' sizes, masses and placement on
+the model. The addon reads it again as the file changes and puts NM again on the model's ragdolls by it; copy the file
+to share it.
 
-## Client
-
-`dms_eyes`, `dms_brows` (the Playroom's face: the eyes blink, look where he's hit or where he's going, squint in pain,
-closed when dead; the brows: fright, alarm, pain), `dms_skeleton` (the Playroom's skeleton), `dms_overlay`
-(superadmin: NM's capsules and boxes, the drives' forces and torques, the COM and its projection; green: balancing,
-red: fallen), `dms_pedcol 0–4` (server: the Playroom's colour schemes, the model's skins).
+The Playroom's face, skeleton and debug overlay were drawn on Homer's model's bones: they're the golden project's.

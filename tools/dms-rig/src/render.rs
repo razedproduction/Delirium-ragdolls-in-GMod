@@ -39,7 +39,7 @@ impl Batch {
         self.idx.extend([n, n + 1]);
     }
 
-    /// A convex hull's triangles (`dms_homer::hull`), flat shaded, placed by `f`.
+    /// A convex hull's triangles (`dms_vphysics::hull`), flat shaded, placed by `f`.
     pub fn hull(&mut self, points: &[Vec3], tris: &[[usize; 3]], f: Transform, color: [f32; 4]) {
         for t in tris {
             let [a, b, c] = t.map(|i| f.transform_point(points[i]));

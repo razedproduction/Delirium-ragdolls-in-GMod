@@ -1,5 +1,5 @@
 //! The step callback on the server's physics environment: the FOLLOW agents (`follow.rs`, ROADMAP M4) and the
-//! debug drives of `DMS.Drive`.
+//! debug drives of `DMR.Drive`.
 //!
 //! No Lua runs in here (docs/adr/0003): natives change the lists between steps, the callback only steps the agents
 //! and calls `IPhysicsNM`; what Lua should hear of comes out through the event queue, taken in `Think`.
@@ -26,7 +26,7 @@ const MAX_EVENTS: usize = 4096;
 const MAX_THREADS: usize = 16;
 const STACK: usize = 8 << 20;
 
-/// `DMS.DevPanic("step")`: the next agent's step panics, to show the callback survives it.
+/// `DMR.DevPanic("step")`: the next agent's step panics, to show the callback survives it.
 pub static PANIC_NEXT: AtomicBool = AtomicBool::new(false);
 
 /// A panic's message.
@@ -49,15 +49,15 @@ struct State {
     drives: Vec<Drive>,
     followers: Vec<Follower>,
     next_id: u32,
-    /// Source's gravity (m/s^2, from `physenv.GetGravity()` through `DMS.SetGravity`) and how it's made up.
+    /// Source's gravity (m/s^2, from `physenv.GetGravity()` through `DMR.SetGravity`) and how it's made up.
     g_src: Vec3,
     mode: GravityMode,
     events: Vec<Event>,
     /// Scenarios that ended, by agent.
     finished: Vec<(u32, Finished)>,
-    /// NM steps' time over the last Source steps (s), for `dms_status`.
+    /// NM steps' time over the last Source steps (s), for `dmr_status`.
     cost: f64,
-    /// Threads the agents step on (`DMS.SetThreads`, 0: the CPU's cores less one).
+    /// Threads the agents step on (`DMR.SetThreads`, 0: the CPU's cores less one).
     threads: usize,
     /// Callback calls: all, and those from an environment it isn't set on (a listen server's client's, docs/adr/0021).
     calls: u64,
@@ -303,7 +303,7 @@ fn compute(f: &mut Follower) -> (Result<(), String>, Vec<Event>) {
     let mut events = vec![];
     let r = panic::catch_unwind(AssertUnwindSafe(|| {
         if f.due > 0 && PANIC_NEXT.swap(false, Ordering::Relaxed) {
-            panic!("DMS.DevPanic");
+            panic!("DMR.DevPanic");
         }
         f.compute(&mut events)
     }));

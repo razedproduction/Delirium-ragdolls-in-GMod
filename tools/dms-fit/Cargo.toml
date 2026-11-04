@@ -9,4 +9,4 @@ publish.workspace = true
 # Read only (docs/adr/0001).
 delirium = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium" }
 delirium-data = { path = "../../../delirium-physics (CLAUDE DONT CHANGE ANYTHING HERE)/crates/delirium-data" }
-dms-game = { path = "../dms-game" }
+dms-game = { path = "../../../DMS in Gmod/tools/dms-game" }

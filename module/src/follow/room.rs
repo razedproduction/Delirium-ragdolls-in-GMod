@@ -177,7 +177,7 @@ impl Side {
     }
 }
 
-/// Something the game did to Homer, for his next NM step (Lua's damage hooks, `dms_react`). Points and directions
+/// Something the game did to Homer, for his next NM step (Lua's damage hooks, `dmr_react`). Points and directions
 /// in the game's frame (m): the follower moves them into NM's.
 #[derive(Clone, Debug)]
 pub enum React {
@@ -1063,7 +1063,7 @@ impl Follower {
         self.room.failed |= self.agent.feedback.iter().any(|f| f.slot == 8 && f.name == "balance");
     }
 
-    /// Off the clip: the bodies go back to NM (Lua unfreezes them, then `DMS.FollowRiseDone`).
+    /// Off the clip: the bodies go back to NM (Lua unfreezes them, then `DMR.FollowRiseDone`).
     fn cancel_rise(&mut self) {
         if self.room.rise.take().is_some() {
             self.unfreeze = true;
@@ -1235,7 +1235,7 @@ fn hero_task(tp: &delirium_data::taskparams::TaskParams, task: &str, set: &str, 
     (lines, if let MeleeTask::Flinch { lean_until, .. } = t { lean_until } else { 0 })
 }
 
-/// The Playroom's buttons a reaction can press (`dms_react button <name>`, the menu).
+/// The Playroom's buttons a reaction can press (`dmr_react button <name>`, the menu).
 pub const BUTTONS: [&str; 22] = [
     "balance", "drunk", "windmill", "pedal", "writhe", "rollup", "catchfall", "highfall", "stairs", "flinch", "brace", "look",
     "point", "lean", "relax", "stayup", "foetal", "grab", "overwall", "STOP all", "shot", "shot back",

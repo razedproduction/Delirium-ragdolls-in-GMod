@@ -1,4 +1,4 @@
-//! `dms_selftest`: Homer's agent in LEAD on the Playroom's floor, `bodyBalance` (the Playroom's "balance") for
+//! `dmr_selftest`: Homer's agent in LEAD on the Playroom's floor, `bodyBalance` (the Playroom's "balance") for
 //! a couple of seconds — he has to stay up (ROADMAP M2). No game physics is involved: NM moves its own body.
 //!
 //! The agent is the crate's, made as the Playroom makes its own (`Agent::new` on Homer's build, `msg::send`), not the

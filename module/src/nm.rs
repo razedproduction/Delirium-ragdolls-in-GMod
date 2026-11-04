@@ -253,7 +253,7 @@ impl Drop for World {
 }
 
 /// `NmBuild`: a body (Homer's). Read back from a dump it has no links (SDK v0.5+: the dump doesn't carry them), so
-/// its agents stand in another pose than the Playroom's: only the bench's LEAD agent and `DMS.BuildJoints` use it.
+/// its agents stand in another pose than the Playroom's: only the bench's LEAD agent and `DMR.BuildJoints` use it.
 pub struct Build(NonNull<sdk::NmBuild>);
 
 // SAFETY: a build isn't changed after it's made; the SDK's calls on it only read it.

@@ -830,12 +830,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "dmr-check"
+version = "0.1.0"
+dependencies = [
+ "delirium",
+ "delirium-sdk",
+ "dmr-ctl",
+ "dms-game",
+]
+
+[[package]]
+name = "dmr-ctl"
+version = "0.1.0"
+dependencies = [
+ "dms-ctl",
+]
+
+[[package]]
 name = "dms-ctl"
 version = "0.2.0"
 
 [[package]]
 name = "dms-fit"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "delirium",
  "delirium-data",
@@ -851,32 +868,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "dms-homer"
-version = "0.2.0"
-dependencies = [
- "delirium",
- "delirium-data",
- "delirium-sdk",
- "dms-game",
-]
-
-[[package]]
-name = "dms-map"
-version = "0.2.0"
-dependencies = [
- "dms-game",
-]
-
-[[package]]
 name = "dms-rig"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "delirium",
  "delirium-data",
  "delirium-sdk",
  "dms-fit",
  "dms-game",
- "dms-homer",
  "dms-vphysics",
  "eframe",
  "image",
@@ -890,7 +889,6 @@ dependencies = [
  "delirium",
  "delirium-data",
  "dms-game",
- "dms-homer",
 ]
 
 [[package]]
@@ -1358,27 +1356,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "gmsv_dms"
-version = "0.2.0"
+name = "gmsv_dmr"
+version = "0.1.0"
 dependencies = [
  "delirium",
  "delirium-data",
  "delirium-sdk",
  "dms-fit",
  "dms-game",
- "dms-homer",
  "dms-vphysics",
-]
-
-[[package]]
-name = "golden"
-version = "0.2.0"
-dependencies = [
- "delirium",
- "delirium-sdk",
- "dms-ctl",
- "dms-game",
- "dms-homer",
 ]
 
 [[package]]

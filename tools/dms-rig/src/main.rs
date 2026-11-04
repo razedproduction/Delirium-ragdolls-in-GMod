@@ -1,6 +1,6 @@
 //! dms-rig: the rig editor (ROADMAP M12.5, docs/adr/0031). A model of Garry's Mod or the Workshop drawn in its own
 //! pose with NM's capsules and boxes fitted over it by the module's own fit (`dms_fit`, Homer from the player's GTA
-//! IV); the rig edited by the mouse and saved as `garrysmod/data/dms/skeletons/<model>.json`, which the addon reloads
+//! IV); the rig edited by the mouse and saved as `garrysmod/data/dmr/skeletons/<model>.json`, which the addon reloads
 //! as it changes; and the fitted body simulated on the fork itself (`vphysics.dll`, VPhysics-Box3D).
 
 mod app;
@@ -19,9 +19,9 @@ const USAGE: &str = "\
 usage: dms-rig [--gmod <GarrysMod dir>] [--game <GTA IV dir>] [--vphysics <vphysics.dll>] [--model <models/...mdl>]
                 [--select <part>] [--snap] [--tool <select|move|rotate|scale|all>] [--yaw <degrees>]
                 [--screenshot <file.png> [--sim <steps> [--nm <button> [--push <N s> | --shoot <weapon>]]]] [--homer]
-  the rig editor: a model's NM rig made by the mouse, saved as garrysmod\\data\\dms\\skeletons\\<model>.json
-  --gmod      Garry's Mod's folder (default: DMS_GMOD_DIR, else Steam's library from the registry)
-  --game      GTA IV's folder (default: DMS_GAME_DIR, else garrysmod\\data\\dms\\game_dir.txt, else golden\\game_dir.txt)
+  the rig editor: a model's NM rig made by the mouse, saved as garrysmod\\data\\dmr\\skeletons\\<model>.json
+  --gmod      Garry's Mod's folder (default: DMR_GMOD_DIR, else Steam's library from the registry)
+  --game      GTA IV's folder (default: DMR_GAME_DIR, else garrysmod\\data\\dmr\\game_dir.txt, else fit\\game_dir.txt)
   --vphysics  the fork's vphysics.dll (default: Garry's Mod's bin\\win64, else the repository's vphysics\\build)
   --model     a model to open at once
   --select    an NM part to select at once (Thigh_Left, Hand_Right, ...); --tool the gizmo's tool
@@ -118,13 +118,13 @@ fn run() -> Result<(), String> {
     };
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().and_then(Path::parent).map(Path::to_path_buf).filter(|r| r.join("Cargo.toml").is_file());
     let read_dir = |p: PathBuf| std::fs::read_to_string(p).ok().map(|t| PathBuf::from(t.trim())).filter(|p| !p.as_os_str().is_empty());
-    let gmod = take("--gmod").map(PathBuf::from).or_else(|| std::env::var_os("DMS_GMOD_DIR").map(PathBuf::from)).or_else(dms_homer::steam_gmod)
+    let gmod = take("--gmod").map(PathBuf::from).or_else(|| std::env::var_os("DMR_GMOD_DIR").map(PathBuf::from)).or_else(dms_vphysics::steam_gmod)
         .ok_or("Garry's Mod not found: pass --gmod <GarrysMod folder>")?;
     let game = take("--game")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("DMS_GAME_DIR").map(PathBuf::from))
-        .or_else(|| read_dir(gmod.join("garrysmod").join("data").join("dms").join("game_dir.txt")))
-        .or_else(|| repo.as_ref().and_then(|r| read_dir(r.join("golden").join("game_dir.txt"))))
+        .or_else(|| std::env::var_os("DMR_GAME_DIR").map(PathBuf::from))
+        .or_else(|| read_dir(gmod.join("garrysmod").join("data").join("dmr").join("game_dir.txt")))
+        .or_else(|| repo.as_ref().and_then(|r| read_dir(r.join("fit").join("game_dir.txt"))))
         .ok_or("no GTA IV folder: pass --game <your GTA IV folder> (NM's body is Homer's, fitted)")?;
     let vphysics = take("--vphysics").map(PathBuf::from);
     let model = take("--model");

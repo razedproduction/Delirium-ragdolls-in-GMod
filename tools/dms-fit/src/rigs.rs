@@ -249,7 +249,7 @@ fn guess(s: &Skeleton) -> Map {
     m
 }
 
-/// A model's bone per part from its names (`{part = bone}`, the mapping editor's and `data/dms/skeletons`'): unknown
+/// A model's bone per part from its names (`{part = bone}`, the mapping editor's and `data/dmr/skeletons`'): unknown
 /// parts or bones are an error; Spine1 to Spine3 are ignored (spread).
 pub fn from_names(s: &Skeleton, names: &[(String, String)]) -> Result<Map, String> {
     let mut m: Map = [None; 21];

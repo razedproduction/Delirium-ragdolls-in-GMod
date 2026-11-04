@@ -257,10 +257,10 @@ fn clouds(skel: &Skeleton, mesh: &Mesh, map: &[Option<String>; 21], joints: &[Ve
 /// fingers) as points over their surfaces (m, about a centimetre apart) by part, as [`clouds`] has the mesh's; `None`
 /// when it can't be read.
 fn hull_clouds(skel: &Skeleton, phy: &[u8], map: &[Option<String>; 21], joints: &[Vec3]) -> Option<Vec<Cloud>> {
-    let file = dms_homer::phy::read(phy).ok()?;
+    let file = dms_vphysics::phy::read(phy).ok()?;
     let part_of = bone_parts(skel, map);
     let mut out = vec![Cloud::default(); 21];
-    for b in dms_homer::phy::blocks(&file.text).iter().filter(|b| b.name == "solid") {
+    for b in dms_vphysics::phy::blocks(&file.text).iter().filter(|b| b.name == "solid") {
         let (Some(i), Some(name)) = (b.get("index").and_then(|i| i.parse::<usize>().ok()), b.get("name")) else { continue };
         let (Some(solid), Some(bone)) = (file.solids.get(i), skel.find(name)) else { continue };
         let Some(mut k) = part_of[bone] else { continue };

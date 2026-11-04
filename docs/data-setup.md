@@ -1,11 +1,11 @@
 # NM's data: your copy of GTA IV
 
-Delirium needs the character's data from GTA IV. The addon doesn't have it and can't (ADR 0006): DMS reads it
+Delirium needs the character's data from GTA IV. The addon doesn't have it and can't (ADR 0006): DMR reads it
 **straight from your copy of the game** with the same `delirium-data` functions and in the same order as the Playroom
 does with `--game` (ADR 0010). Nothing is copied or saved.
 
 The PC version (the folder with `GTAIV.exe` and `pc\`) or Xbox 360 (the folder with `default.xex`; the Playroom puts
-the xex key in `%APPDATA%\delirium\xex.key` the first time it runs with that game, and DMS only reads it) will do. PS3
+the xex key in `%APPDATA%\delirium\xex.key` the first time it runs with that game, and DMR only reads it) will do. PS3
 isn't supported.
 
 ## In Garry's Mod
@@ -13,12 +13,12 @@ isn't supported.
 In the server's console (or as a superadmin):
 
 ```
-dms_game_dir "D:\Games\Grand Theft Auto IV"
-dms_data
-dms_selftest
+dmr_game_dir "D:\Games\Grand Theft Auto IV"
+dmr_data
+dmr_selftest
 ```
 
-`dms_game_dir` is saved (`FCVAR_ARCHIVE`). While it's empty, DMS takes the folder from `garrysmod\data\dms\game_dir.txt`,
+`dmr_game_dir` is saved (`FCVAR_ARCHIVE`). While it's empty, DMR takes the folder from `garrysmod\data\dmr\game_dir.txt`,
 which the release's `install.bat` writes (the path only). The data loads once a run: Delirium keeps the character
 in global state, so to change the folder, restart Garry's Mod.
 
@@ -36,11 +36,12 @@ On PC the game's files are little-endian: `delirium_data::LE` is set before read
 
 ## Without the data
 
-`dms_selftest`, `dms_data`, `dms_nm_build` and `dms_nm_joints` without a GTA IV folder (or with a wrong one) say what's
-missing and what to set. `DMS.LoadData(dir)` in Lua then throws an error with the same text.
+`dmr_selftest`, `dmr_data`, `dmr_nm_build` and `dmr_nm_joints` without a GTA IV folder (or with a wrong one) say what's
+missing and what to set. `DMR.LoadData(dir)` in Lua then throws an error with the same text.
 
 ## What matches the Playroom
 
-`tools/golden` (`golden/README.md`) checks: the Homer build DMS makes matches the Playroom's `NM_DUMP` byte for byte;
-the derived links give the Playroom the same run bit for bit; DMS's agent in LEAD (as in `dms_selftest`) runs bit for
-bit with the Playroom's first second.
+NM's data is read by the golden checkout's `tools/dms-game` (docs/adr/0036), and its `tools/golden` checks it there:
+the Homer build matches the Playroom's `NM_DUMP` byte for byte; the derived links give the Playroom the same run bit
+for bit; an agent in LEAD (as in `dmr_selftest`) runs bit for bit with the Playroom's first second. Here,
+`dmr-check body` holds a body fitted to a model to the SDK's own fit of that build ([fit/README.md](../fit/README.md)).

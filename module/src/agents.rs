@@ -1,6 +1,5 @@
-//! The FOLLOW agents' natives (ROADMAP M4): Lua binds Homer's ragdoll (`DMS.BindHomer`), puts NM on it
-//! (`DMS.Follow`), sends it messages, takes it off before the ragdoll goes, and hears of it through `DMS.FollowEvents`
-//! in `Think` (docs/adr/0003).
+//! The FOLLOW agents' natives (ROADMAP M4): NM on a body (`ragdolls.rs` puts it on a fitted native body), its
+//! messages, taken off before the body goes, and heard of through `DMR.FollowEvents` in `Think` (docs/adr/0003).
 
 use std::ffi::{CStr, c_int};
 use std::sync::Arc;
@@ -10,13 +9,12 @@ use delirium::ragdoll::Obstacle;
 
 use crate::data;
 use crate::ffi::vphysics_nm::{self, IPhysicsConstraint, IPhysicsObject, Version};
-use crate::follow::{BodyDef, Follower, GravityMode, PARTS};
+use crate::follow::{BodyDef, Follower, GravityMode};
 use crate::lua::{self, Api, LuaState, TTABLE, native};
 use crate::step;
 use crate::world;
 
 pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
-    (c"Follow", follow),
     (c"FollowObstacles", follow_obstacles),
     (c"Unfollow", unfollow),
     (c"FollowSend", follow_send),
@@ -35,9 +33,9 @@ pub const NATIVES: &[(&CStr, lua::CFunction)] = &[
 ];
 
 native!(follow_grab => follow_grab_impl);
-/// `DMS.FollowGrab(id, target[, part, at])`: the Playroom's grab (its `pull`, ROADMAP M10: the physgun and the gravity
+/// `DMR.FollowGrab(id, target[, part, at])`: the Playroom's grab (its `pull`, ROADMAP M10: the physgun and the gravity
 /// gun on a fitted body): part `part` grabbed at `at` (m, the game's frame, on it now) and pulled toward `target`; without
-/// `part` only the target moves; `DMS.FollowGrab(id)` lets go. False for no such agent.
+/// `part` only the target moves; `DMR.FollowGrab(id)` lets go. False for no such agent.
 unsafe fn follow_grab_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
     let grab = if unsafe { (api.type_)(l, 2) } <= lua::TNIL {
@@ -57,7 +55,7 @@ unsafe fn follow_grab_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_nearest => follow_nearest_impl);
-/// `DMS.FollowNearest(id, at)`: the part of NM's doll nearest a point (m, the game's frame), nil for no such agent.
+/// `DMR.FollowNearest(id, at)`: the part of NM's doll nearest a point (m, the game's frame), nil for no such agent.
 unsafe fn follow_nearest_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
     let at = Vec3::from_array(unsafe { api.check_vec3(l, 2)? });
@@ -69,7 +67,7 @@ unsafe fn follow_nearest_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Stri
 }
 
 native!(follow_park => follow_park_impl);
-/// `DMS.FollowPark(id, on[, on_motion])`: LOD (docs/adr/0021): NM off the agent's bodies (no steps, drives or
+/// `DMR.FollowPark(id, on[, on_motion])`: LOD (docs/adr/0021): NM off the agent's bodies (no steps, drives or
 /// armature: an ordinary ragdoll), the agent and its room kept, or back on them. With `on_motion` it comes back by
 /// itself once a part moves (the `unparked` event). False for no such agent.
 unsafe fn follow_park_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -80,7 +78,7 @@ unsafe fn follow_park_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_stats => follow_stats_impl);
-/// `DMS.FollowStats()`: `{ms, threads, calls, foreign, agents = {[id] = ms}}`: NM's time a Source step on the main
+/// `DMR.FollowStats()`: `{ms, threads, calls, foreign, agents = {[id] = ms}}`: NM's time a Source step on the main
 /// thread (smoothed), the threads the agents step on, the step callback's calls and those from another environment
 /// (none: it's set on the server's only), and each agent's NM step (ms, smoothed; 0 parked).
 unsafe fn follow_stats_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -103,7 +101,7 @@ unsafe fn follow_stats_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(set_threads => set_threads_impl);
-/// `DMS.SetThreads(n)`: the threads the agents step on (0: the CPU's cores less one; at most 16).
+/// `DMR.SetThreads(n)`: the threads the agents step on (0: the CPU's cores less one; at most 16).
 unsafe fn set_threads_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let n = unsafe { api.check_number(l, 1)? };
     step::set_threads(n.max(0.0) as usize);
@@ -111,7 +109,7 @@ unsafe fn set_threads_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(env_timestep => env_timestep_impl);
-/// `DMS.EnvTimestep(physobj[, t])`: the physics step (s) of the object's environment (the game sets 0.015 whatever
+/// `DMR.EnvTimestep(physobj[, t])`: the physics step (s) of the object's environment (the game sets 0.015 whatever
 /// the tickrate); with `t`, sets it first. For measuring NM's 1/60 against it (ROADMAP M4).
 unsafe fn env_timestep_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let nm = vphysics_nm::get().ok_or("IPhysicsNM isn't available")?;
@@ -135,42 +133,18 @@ unsafe fn env_timestep_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
     Ok(1)
 }
 
-/// The 21 PhysObj of the table at `arg`, `[i + 1]` part `i`'s.
-pub unsafe fn parts(api: &Api, l: *mut LuaState, arg: c_int) -> Result<Vec<*mut IPhysicsObject>, String> {
-    if unsafe { (api.type_)(l, arg) } != TTABLE {
-        return Err(format!("bad argument #{arg} (a table of {PARTS} PhysObj in NM's part order expected)"));
-    }
-    (0..PARTS)
-        .map(|i| unsafe {
-            (api.rawgeti)(l, arg, i as c_int + 1);
-            let p = api.check_physobj(l, -1).map_err(|_| format!("bad argument #{arg} ([{}] isn't a PhysObj)", i + 1));
-            (api.settop)(l, -2);
-            p
-        })
-        .collect()
-}
-
-/// NM on the ragdoll `objects` (bound by `DMS.BindHomer`): its joints found, the agent made on them as they are now.
-/// NM's frame is at `floor`; its world the map's (`world.rs`), or without one the Playroom's floor there (with the
-/// room's pool for `room`, the bench).
+/// NM on a body (`def`, fitted to a model: ROADMAP M9) made of `objects`, its parts in NM's order: its joints found,
+/// the agent made on them as they are now. NM's frame is at `floor`; its world the map's (`world.rs`), or without one
+/// the Playroom's floor there (with the room's pool for `room`, the bench).
 ///
 /// # Safety
 /// The objects are live until the agent is unfollowed.
-pub unsafe fn start(objects: Vec<*mut IPhysicsObject>, yaw: f32, floor: Vec3, room: bool) -> Result<u32, String> {
-    let d = data::get().ok_or_else(|| format!("NM's data isn't loaded (DMS.LoadData): {}", data::how_to()))?;
-    unsafe { start_body(objects, BodyDef::homer(&d), yaw, floor, room) }
-}
-
-/// [`start`] on any NM body (`def`): Homer's or one fitted to a model (ROADMAP M9).
-///
-/// # Safety
-/// As [`start`].
 pub unsafe fn start_body(objects: Vec<*mut IPhysicsObject>, def: Arc<BodyDef>, yaw: f32, floor: Vec3, room: bool) -> Result<u32, String> {
     let nm = vphysics_nm::get().ok_or("IPhysicsNM isn't available (vphysics.dll isn't VPhysics-Box3D)")?;
-    if nm.version < Version::V004 {
-        return Err(format!("{} is too old for Homer: update VPhysics-Box3D", nm.version.name()));
+    if nm.version < Version::V006 {
+        return Err(format!("{} is too old for native bodies: update VPhysics-Box3D", nm.version.name()));
     }
-    let d = data::get().ok_or_else(|| format!("NM's data isn't loaded (DMS.LoadData): {}", data::how_to()))?;
+    let d = data::get().ok_or_else(|| format!("NM's data isn't loaded (DMR.LoadData): {}", data::how_to()))?;
     if objects.len() != def.body.parts.len() {
         return Err(format!("{} parts expected, {} given", def.body.parts.len(), objects.len()));
     }
@@ -184,7 +158,7 @@ pub unsafe fn start_body(objects: Vec<*mut IPhysicsObject>, def: Arc<BodyDef>, y
             Some(q) => {
                 // SAFETY: both are PhysObj of the ragdoll, alive for this call.
                 let c = unsafe { nm.find_constraint(objects[q], objects[k]) };
-                if c.is_null() { Err(format!("{}: no constraint to {} (not models/dms/homer.mdl?)", p.name, def.body.parts[q].name)) } else { Ok(c) }
+                if c.is_null() { Err(format!("{}: no constraint to {} (not a native body?)", p.name, def.body.parts[q].name)) } else { Ok(c) }
             }
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -208,24 +182,8 @@ pub fn world_at(d: &data::Data, origin: Vec3, room: bool, at: Vec3) -> (Arc<deli
     }
 }
 
-native!(follow => follow_impl);
-/// `DMS.Follow(parts, yaw, floor[, room])`: NM drives Homer's ragdoll from the next physics step. `parts` its 21
-/// PhysObj in NM's part order, bound (`DMS.BindHomer`); `yaw` where he faces (rad); `floor` the floor under him
-/// (m, the game's frame: Box3D's, DMS_FloorBelow), where NM's frame starts; `room` true for the bench (the Playroom
-/// room's floor if the map has no world). The agent's id.
-/// `DMS.Unfollow` it before the ragdoll goes.
-unsafe fn follow_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
-    let objects = unsafe { parts(api, l, 1)? };
-    let yaw = unsafe { api.check_number(l, 2)? } as f32;
-    let floor = Vec3::from_array(unsafe { api.check_vec3(l, 3)? });
-    let room = unsafe { (api.toboolean)(l, 4) } != 0;
-    let id = unsafe { start(objects, yaw, floor, room)? };
-    unsafe { (api.pushnumber)(l, f64::from(id)) };
-    Ok(1)
-}
-
 native!(unfollow => unfollow_impl);
-/// `DMS.Unfollow(id)`: NM off the ragdoll (armature 0, no drives): an ordinary ragdoll again. False for no such agent.
+/// `DMR.Unfollow(id)`: NM off the ragdoll (armature 0, no drives): an ordinary ragdoll again. False for no such agent.
 unsafe fn unfollow_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
     unsafe { (api.pushboolean)(l, step::unfollow(id).into()) };
@@ -234,12 +192,12 @@ unsafe fn unfollow_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
 
 unsafe fn agent_id(api: &Api, l: *mut LuaState) -> Result<u32, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
-    step::with(id, |_| ()).ok_or_else(|| format!("no DMS agent {id}"))?;
+    step::with(id, |_| ()).ok_or_else(|| format!("no DMR agent {id}"))?;
     Ok(id)
 }
 
 native!(follow_send => follow_send_impl);
-/// `DMS.FollowSend(id, line)`: a message line (`<message> [param=value ...]`, as the Playroom's console takes it) for
+/// `DMR.FollowSend(id, line)`: a message line (`<message> [param=value ...]`, as the Playroom's console takes it) for
 /// the agent's next NM step. Vectors are in NM's frame (from the floor he was put on; the bench's: the Playroom room's).
 unsafe fn follow_send_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { agent_id(api, l)? };
@@ -249,7 +207,7 @@ unsafe fn follow_send_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_list => follow_list_impl);
-/// `DMS.FollowList()`: the agents' ids.
+/// `DMR.FollowList()`: the agents' ids.
 unsafe fn follow_list_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let ids = step::ids();
     unsafe {
@@ -263,7 +221,7 @@ unsafe fn follow_list_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_state => follow_state_impl);
-/// `DMS.FollowState(id)`: `{steps, parked, cost, origin, awake, asleep, balancing, fallen, compensation, pelvis, head,
+/// `DMR.FollowState(id)`: `{steps, parked, cost, origin, awake, asleep, balancing, fallen, compensation, pelvis, head,
 /// com, com_v}` (m, the game's frame; NM's view after its last step; `cost` its NM step, ms; `origin` where NM's
 /// frame starts), nil for no such agent.
 unsafe fn follow_state_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -295,7 +253,7 @@ unsafe fn follow_state_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String
 }
 
 native!(follow_events => follow_events_impl);
-/// `DMS.FollowEvents()`: what happened since the last call, `{id, kind, text, value}` each: `feedback` (NM's,
+/// `DMR.FollowEvents()`: what happened since the last call, `{id, kind, text, value}` each: `feedback` (NM's,
 /// `text` "name slot"), `fallen`, `up`, `sleep` (NM's doll sleeps: put the bodies to sleep), `wake`, `detached` (NaN:
 /// NM is off the ragdoll, `text` why).
 unsafe fn follow_events_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
@@ -314,11 +272,11 @@ unsafe fn follow_events_impl(api: &Api, l: *mut LuaState) -> Result<c_int, Strin
     Ok(1)
 }
 
-/// Numbers per obstacle in `DMS.FollowObstacles`' list.
+/// Numbers per obstacle in `DMR.FollowObstacles`' list.
 const OBSTACLE_NUMBERS: usize = 25;
 
 native!(follow_obstacles => follow_obstacles_impl);
-/// `DMS.FollowObstacles(id, list)`: the props near the agent as NM's obstacles (boxes, as the Playroom's cars and
+/// `DMR.FollowObstacles(id, list)`: the props near the agent as NM's obstacles (boxes, as the Playroom's cars and
 /// planks) for its steps until the next call. `list` is flat, 25 numbers a box (m, s, the game's frame): its id, the
 /// box's centre, its forward, left and up axes, its half sizes, velocity, spin (rad/s), centre of mass. False for no
 /// such agent.
@@ -360,7 +318,7 @@ unsafe fn follow_obstacles_impl(api: &Api, l: *mut LuaState) -> Result<c_int, St
 }
 
 native!(follow_gravity_off => follow_gravity_off_impl);
-/// `DMS.FollowGravityOff(id, mask)`: the parts the game doesn't pull (`PhysObj:IsGravityEnabled()` false), bit `k`
+/// `DMR.FollowGravityOff(id, mask)`: the parts the game doesn't pull (`PhysObj:IsGravityEnabled()` false), bit `k`
 /// part `k`: their compensation takes Source's gravity as 0 (docs/adr/0007). False for no such agent (NM came off).
 unsafe fn follow_gravity_off_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let id = unsafe { api.check_number(l, 1)? } as u32;
@@ -371,7 +329,7 @@ unsafe fn follow_gravity_off_impl(api: &Api, l: *mut LuaState) -> Result<c_int, 
 }
 
 native!(set_gravity => set_gravity_impl);
-/// `DMS.SetGravity(g, mode)`: Source's gravity (m/s^2, a vector, `physenv.GetGravity()` scaled) and how it's made
+/// `DMR.SetGravity(g, mode)`: Source's gravity (m/s^2, a vector, `physenv.GetGravity()` scaled) and how it's made
 /// up to NM's 9.8 (`nm`, `hybrid`, `off`; docs/adr/0007).
 unsafe fn set_gravity_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     let g = Vec3::from_array(unsafe { api.check_vec3(l, 1)? });
@@ -382,7 +340,7 @@ unsafe fn set_gravity_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String>
 }
 
 native!(follow_cost => follow_cost_impl);
-/// `DMS.FollowCost()`: what the agents cost a physics step (ms, smoothed).
+/// `DMR.FollowCost()`: what the agents cost a physics step (ms, smoothed).
 unsafe fn follow_cost_impl(api: &Api, l: *mut LuaState) -> Result<c_int, String> {
     unsafe { (api.pushnumber)(l, step::cost_ms()) };
     Ok(1)

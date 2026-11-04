@@ -1,4 +1,4 @@
-//! What the 3D view shows: NM's parts as the fork hulls them (`dms_homer::hull`), picking them by a ray, Source's
+//! What the 3D view shows: NM's parts as the fork hulls them (`dms_vphysics::hull`), picking them by a ray, Source's
 //! angles, and the model's mesh posed from NM's parts (the bones as the game poses them: the parts' own from their
 //! parts, the rest after their parents, docs/adr/0030).
 
@@ -36,8 +36,8 @@ impl Hulls {
         let i = match self.cache.iter().position(|c| c.0 == *s) {
             Some(i) => i,
             None => {
-                let p = dms_homer::hull::points(s);
-                let t = dms_homer::hull::hull(&p);
+                let p = dms_vphysics::hull::points(s);
+                let t = dms_vphysics::hull::hull(&p);
                 if self.cache.len() > 256 {
                     self.cache.clear();
                 }

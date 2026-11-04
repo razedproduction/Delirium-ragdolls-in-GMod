@@ -1,5 +1,5 @@
 //! The bench agent (ROADMAP M2.5): Homer's agent in LEAD on the Playroom's floor, stepped in real time from
-//! `Think`, so `dms-ctl` can drive it and run the Playroom's scenarios (`golden/scenarios/`) on the server, recorded
+//! `Think`, so `dmr-ctl` can drive it and run the Playroom's scenarios (`fit/scenarios/`) on the server, recorded
 //! in the Playroom's `--rec` format. In LEAD NM moves its own body: no game physics is involved. The FOLLOW agent
 //! on the server's ragdoll comes with M4 and takes its place.
 //!
@@ -85,7 +85,7 @@ impl Bench {
     }
 
     fn unsupported(&mut self, what: &str) {
-        self.say(&format!("dms  unsupported on the bench: {what}"));
+        self.say(&format!("dmr  unsupported on the bench: {what}"));
         if let Some(r) = self.script.as_mut() {
             r.unsupported.push(what.to_string());
         }
@@ -116,7 +116,7 @@ impl Bench {
     /// `get-up` (no get-up animation here: always off), `RESET pose`.
     fn button(&mut self, d: &Data, b: &str) {
         let lines: &[&str] = match b {
-            // The Playroom's get-up modes cycle; DMS has no get-up at all, the mode is only logged as there.
+            // The Playroom's get-up modes cycle; DMR has no get-up at all, the mode is only logged as there.
             "get-up" => {
                 self.getup = (self.getup + 1) % GETUP_MODES.len();
                 return self.say(&format!("ours  get-up: {}", GETUP_MODES[self.getup]));

@@ -1,8 +1,8 @@
 //! The player's tuning of NM's behaviours (docs/adr/0009, ROADMAP M6): a profile's values for messages' params and
-//! for the tasks' `taskparams` sets, through NM's own inputs only. Off (`dms_tuning 0`) or with the empty
+//! for the tasks' `taskparams` sets, through NM's own inputs only. Off (`dmr_tuning 0`) or with the empty
 //! "Playroom" profile, NM gets exactly the Playroom's; a scenario's agent (the bench, `golden`) never gets any.
 //!
-//! Lua keeps the profiles (`data/dms/profiles/*.json`) and hands the active one over as text (`DMS.SetTuning`):
+//! Lua keeps the profiles (`data/dmr/profiles/*.json`) and hands the active one over as text (`DMR.SetTuning`):
 //! a line per value, `msg <message> <param> <value>` or `tp <task> <set> <param> <value>`.
 
 use std::collections::HashMap;

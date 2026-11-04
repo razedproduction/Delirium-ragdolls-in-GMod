@@ -1,0 +1,10 @@
+# Стойка bodyBalance 60 с.
+# Оконный режим (--script): время команд — по часам; первая команда на 3 с, пока окно грузится (тело держится
+# в позе, шаги не идут). Фактический шаг каждой команды — в строках "#" файла .rec.
+# Встаёт Playroom анимацией (не NM) после 2 с лежания: get-up дважды = режим off.
+#! window
+#! tol fall end_z=0.02 marks   # FOLLOW on Box3D against LEAD (fit/README.md; the golden side holds Homer to the Playroom by it)
+3 !button get-up
+3 !button get-up
+3 !button balance
+63 !quit

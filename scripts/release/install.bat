@@ -1,25 +1,26 @@
 @echo off
-rem DMS installer for players: double-click it in the unpacked release (DMS-<version>-win64\), Garry's Mod closed.
+rem DMR installer for players: double-click it in the unpacked release (DMR-<version>-win64\), Garry's Mod closed.
 rem
 rem What goes where (install.md):
 rem   bin\vphysics.dll        -> GarrysMod\bin\win64\vphysics.dll (Steam's own kept once as vphysics.dll.original)
-rem   bin\gmsv_dms_win64.dll  -> GarrysMod\garrysmod\lua\bin
-rem   your GTA IV folder      -> GarrysMod\garrysmod\data\dms\game_dir.txt (the path only), then bin\dms-homer.exe
-rem                              makes garrysmod\models\dms\homer.mdl from your copy of the game
-rem The Lua addon isn't in the release: it's the Workshop's (WORKSHOP below). A garrysmod\addons\dms left by an older
-rem release is removed, so only the Workshop's Lua runs. Nothing of GTA IV is copied anywhere, nothing leaves your machine.
+rem   bin\gmsv_dmr_win64.dll  -> GarrysMod\garrysmod\lua\bin
+rem   your GTA IV folder      -> GarrysMod\garrysmod\data\dmr\game_dir.txt (the path only: NM's data is read from it)
+rem The Lua addon isn't in the release: it's the Workshop's (WORKSHOP below). Nothing of GTA IV is copied anywhere,
+rem nothing leaves your machine. DMR goes beside the Delirium Playroom (DMS) if that's installed: both use the same
+rem vphysics.dll.
 rem
 rem No ( ) blocks with paths in them: "Program Files (x86)" would end a block; one-line ifs and gotos only.
 
 setlocal EnableExtensions DisableDelayedExpansion
-title DMS installer
+title DMR installer
 cd /d "%~dp0"
 set "HERE=%~dp0"
 rem scripts\package.ps1 puts the release's version here.
 set "VERSION=@VERSION@"
-set "WORKSHOP_ID=3829811829"
+rem The DMR addon's Workshop item (not the Playroom's 3829811829); empty until it's published.
+set "WORKSHOP_ID="
 set "WORKSHOP=https://steamcommunity.com/sharedfiles/filedetails/?id=%WORKSHOP_ID%"
-rem UTF-8, so a GTA IV folder with non-Latin letters reaches game_dir.txt as DMS reads it; the old code page at the end.
+rem UTF-8, so a GTA IV folder with non-Latin letters reaches game_dir.txt as DMR reads it; the old code page at the end.
 rem chcp reads stdin away when it's redirected: <nul.
 set "OLDCP="
 for /f "tokens=2 delims=:" %%C in ('chcp ^<nul') do set "OLDCP=%%C"
@@ -28,32 +29,28 @@ rem Answers asked again at most this many times in all (a closed input would ask
 set "TRIES=0"
 
 echo ==========================================================
-echo   DMS %VERSION% for Garry's Mod (64-bit, Windows)
+echo   DMR %VERSION% for Garry's Mod (64-bit, Windows)
+echo   Delirium (NM) on GMod's ragdolls, NPCs and Workshop models
 echo ==========================================================
 echo.
-echo DMS needs two things from you:
-echo   - the DMS addon from the Steam Workshop (the Lua part):
-echo     %WORKSHOP%
-echo   - your own copy of GTA IV, to make Homer's model from it.
+echo DMR needs two things from you:
+echo   - the DMR addon from the Steam Workshop (the Lua part)
+echo   - your own copy of GTA IV: NM's data is read from it.
 echo.
 
 :ask_action
 set /a TRIES+=1
 if %TRIES% GTR 10 goto no_answer
-echo   1. Install or update DMS and make Homer's model (first install, or a release that asks for it)
-echo   2. Install or update DMS only (Homer's model stays as it is)
-echo   3. Make Homer's model only
-echo   4. Uninstall DMS
+echo   1. Install or update DMR (and set your GTA IV folder)
+echo   2. Set your GTA IV folder only
+echo   3. Uninstall DMR
 echo.
 set "ACTION="
-set /p "ACTION=Choose 1, 2, 3 or 4: "
-set "DO_INSTALL=0"
-set "DO_MODEL=0"
-if "%ACTION%"=="1" set "DO_INSTALL=1"& set "DO_MODEL=1"& goto get_gmod
-if "%ACTION%"=="2" set "DO_INSTALL=1"& goto get_gmod
-if "%ACTION%"=="3" set "DO_MODEL=1"& goto get_gmod
-if "%ACTION%"=="4" goto get_gmod
-echo Type a number from 1 to 4.
+set /p "ACTION=Choose 1, 2 or 3: "
+if "%ACTION%"=="1" goto get_gmod
+if "%ACTION%"=="2" goto get_gmod
+if "%ACTION%"=="3" goto get_gmod
+echo Type a number from 1 to 3.
 echo.
 goto ask_action
 
@@ -93,19 +90,19 @@ set "ORIGINAL=%WIN64%\vphysics.dll.original"
 if not exist "%WIN64%\vphysics.dll" goto no_x64
 tasklist /fo csv /nh 2>nul | findstr /i /b /c:"\"gmod" /c:"\"hl2.exe" >nul
 if not errorlevel 1 echo ERROR: Garry's Mod is running: close it first (its vphysics.dll can't be replaced while it runs).& goto fail
-if "%ACTION%"=="4" goto uninstall
-if "%DO_INSTALL%"=="1" goto install
-goto model
+if "%ACTION%"=="3" goto uninstall
+if "%ACTION%"=="2" goto gta
+goto install
 
 :no_x64
-echo ERROR: %WIN64%\vphysics.dll isn't there: DMS needs 64-bit Garry's Mod (its bin\win64 folder);
+echo ERROR: %WIN64%\vphysics.dll isn't there: DMR needs 64-bit Garry's Mod (its bin\win64 folder);
 echo let Steam update the game, or check this is the GarrysMod folder.
 goto fail
 
 rem ---- The fork and the module.
 :install
 echo.
-for %%F in (vphysics.dll gmsv_dms_win64.dll dms-homer.exe) do if not exist "%HERE%bin\%%F" echo ERROR: bin\%%F is missing: unpack the whole zip.& goto fail
+for %%F in (vphysics.dll gmsv_dmr_win64.dll) do if not exist "%HERE%bin\%%F" echo ERROR: bin\%%F is missing: unpack the whole zip.& goto fail
 rem Only the first install keeps what is there: later ones would back up the fork itself.
 if exist "%ORIGINAL%" goto copy_fork
 copy /y "%WIN64%\vphysics.dll" "%ORIGINAL%" >nul
@@ -115,39 +112,29 @@ copy /y "%HERE%bin\vphysics.dll" "%WIN64%\vphysics.dll" >nul
 if errorlevel 1 echo ERROR: can't write %WIN64%\vphysics.dll (try "Run as administrator").& goto fail
 echo -^> %WIN64%\vphysics.dll (VPhysics-Box3D with IPhysicsNM; Steam's own: vphysics.dll.original)
 if not exist "%GAMEDATA%\lua\bin\" mkdir "%GAMEDATA%\lua\bin"
-copy /y "%HERE%bin\gmsv_dms_win64.dll" "%GAMEDATA%\lua\bin\gmsv_dms_win64.dll" >nul
-if errorlevel 1 echo ERROR: can't write %GAMEDATA%\lua\bin\gmsv_dms_win64.dll.& goto fail
-echo -^> %GAMEDATA%\lua\bin\gmsv_dms_win64.dll
-rem An older release's Lua (0.1.0 put it here) would run beside the Workshop's.
-if not exist "%GAMEDATA%\addons\dms\" goto workshop
-rmdir /s /q "%GAMEDATA%\addons\dms"
-echo removed %GAMEDATA%\addons\dms (an older release's Lua: the addon is the Workshop's now)
+copy /y "%HERE%bin\gmsv_dmr_win64.dll" "%GAMEDATA%\lua\bin\gmsv_dmr_win64.dll" >nul
+if errorlevel 1 echo ERROR: can't write %GAMEDATA%\lua\bin\gmsv_dmr_win64.dll.& goto fail
+echo -^> %GAMEDATA%\lua\bin\gmsv_dmr_win64.dll
 
-:workshop
 rem The Workshop's downloads are in the library's steamapps\workshop\content\4000 (Garry's Mod is app 4000).
-if exist "%GMOD%\..\..\workshop\content\4000\%WORKSHOP_ID%\" echo The DMS addon is subscribed on the Workshop.& goto after_install
+if not defined WORKSHOP_ID echo The DMR addon isn't on the Workshop yet: put its addon\ folder into %GAMEDATA%\addons\dmr.& goto gta
+if exist "%GMOD%\..\..\workshop\content\4000\%WORKSHOP_ID%\" echo The DMR addon is subscribed on the Workshop.& goto gta
 echo.
-echo The DMS addon (its Lua) isn't downloaded from the Workshop yet: subscribe to it, or DMS won't start.
+echo The DMR addon (its Lua) isn't downloaded from the Workshop yet: subscribe to it, or DMR won't start.
 echo   %WORKSHOP%
 set "ANSWER="
 set /p "ANSWER=Open its Workshop page in Steam? [Y/n]: "
 if /i not "%ANSWER%"=="n" start "" "steam://url/CommunityFilePage/%WORKSHOP_ID%"
 
-:after_install
-if "%DO_MODEL%"=="1" goto model
-if exist "%GAMEDATA%\models\dms\homer.mdl" goto done
+rem ---- The player's GTA IV folder: NM's data is read from it in the game.
+:gta
 echo.
-echo Homer's model isn't made yet: run install.bat again and choose 3.
-goto done
-
-rem ---- Homer's model, by dms-homer from the player's GTA IV.
-:model
-echo.
-if not exist "%HERE%bin\dms-homer.exe" echo ERROR: bin\dms-homer.exe is missing: unpack the whole zip.& goto fail
 set "GTA="
-if exist "%GAMEDATA%\data\dms\game_dir.txt" set /p GTA=<"%GAMEDATA%\data\dms\game_dir.txt"
+if exist "%GAMEDATA%\data\dmr\game_dir.txt" set /p GTA=<"%GAMEDATA%\data\dmr\game_dir.txt"
+rem The Playroom's (DMS), if it knows the folder already.
+if not defined GTA if exist "%GAMEDATA%\data\dms\game_dir.txt" set /p GTA=<"%GAMEDATA%\data\dms\game_dir.txt"
 if not defined GTA goto ask_gta
-echo GTA IV folder from the last time: %GTA%
+echo GTA IV folder: %GTA%
 set "ANSWER="
 set /p "ANSWER=Use this folder? [Y/n]: "
 if /i "%ANSWER%"=="n" goto ask_gta
@@ -169,43 +156,39 @@ if exist "%GTA%\default.xex" goto gta_ok
 echo ERROR: %GTA% isn't a GTA IV folder (no GTAIV.exe or default.xex in it).
 goto ask_gta
 :gta_ok
-if not exist "%GAMEDATA%\data\dms\" mkdir "%GAMEDATA%\data\dms"
-> "%GAMEDATA%\data\dms\game_dir.txt" echo %GTA%
-echo -^> %GAMEDATA%\data\dms\game_dir.txt (DMS reads NM's data from %GTA%; dms_game_dir overrides it)
-echo.
-echo Making Homer's model (a minute or so)...
-"%HERE%bin\dms-homer.exe" --game "%GTA%" --gmod "%GMOD%" <nul
-if errorlevel 1 echo ERROR: dms-homer failed (its messages are above).& goto fail
+if not exist "%GAMEDATA%\data\dmr\" mkdir "%GAMEDATA%\data\dmr"
+> "%GAMEDATA%\data\dmr\game_dir.txt" echo %GTA%
+echo -^> %GAMEDATA%\data\dmr\game_dir.txt (DMR reads NM's data from %GTA%; dmr_game_dir overrides it)
 goto done
 
-rem ---- Steam's vphysics.dll back, the module out; the Workshop's addon is unsubscribed in Steam.
+rem ---- The module out; Steam's vphysics.dll back unless the Playroom (DMS) still needs the fork.
 :uninstall
 echo.
-echo Steam's vphysics.dll goes back and the DMS module is removed. Kept (yours, made from your GTA IV):
-echo garrysmod\models\dms, garrysmod\materials\models\dms, garrysmod\data\dms.
+echo The DMR module is removed (garrysmod\data\dmr is kept). Steam's vphysics.dll goes back unless DMS is installed.
 set "ANSWER="
-set /p "ANSWER=Uninstall DMS? [y/N]: "
+set /p "ANSWER=Uninstall DMR? [y/N]: "
 if /i not "%ANSWER%"=="y" echo Nothing changed.& goto done
+if exist "%GAMEDATA%\lua\bin\gmsv_dmr_win64.dll" del /q "%GAMEDATA%\lua\bin\gmsv_dmr_win64.dll"
+echo removed %GAMEDATA%\lua\bin\gmsv_dmr_win64.dll
+if exist "%GAMEDATA%\addons\dmr\" rmdir /s /q "%GAMEDATA%\addons\dmr"
+if exist "%GAMEDATA%\lua\bin\gmsv_dms_win64.dll" echo vphysics.dll left as it is: the Delirium Playroom (DMS) uses it too.& goto unsubscribe
 if not exist "%ORIGINAL%" goto no_original
 copy /y "%ORIGINAL%" "%WIN64%\vphysics.dll" >nul
 if errorlevel 1 echo ERROR: can't write %WIN64%\vphysics.dll (try "Run as administrator").& goto fail
 del /q "%ORIGINAL%"
 echo -^> %WIN64%\vphysics.dll: Steam's own again
-goto remove_module
+goto unsubscribe
 :no_original
 echo No vphysics.dll.original: vphysics.dll left as it is (Steam's "Verify integrity of game files" puts its own back).
-:remove_module
-if exist "%GAMEDATA%\lua\bin\gmsv_dms_win64.dll" del /q "%GAMEDATA%\lua\bin\gmsv_dms_win64.dll"
-echo removed %GAMEDATA%\lua\bin\gmsv_dms_win64.dll
-if exist "%GAMEDATA%\addons\dms\" rmdir /s /q "%GAMEDATA%\addons\dms"
-echo Unsubscribe from the DMS addon on the Workshop to remove its Lua too: %WORKSHOP%
+:unsubscribe
+if defined WORKSHOP_ID echo Unsubscribe from the DMR addon on the Workshop to remove its Lua too: %WORKSHOP%
 set "CODE=0"
 goto quit
 
 :done
 echo.
-echo Done. In Garry's Mod (a local game, 64-bit): dms_homer in the console spawns Homer,
-echo dms_menu opens the DMS window.
+echo Done. In Garry's Mod (a local game, 64-bit): dmr_ragdoll in the console spawns a citizen with NM,
+echo dmr_menu opens the DMR window.
 set "CODE=0"
 goto quit
 
